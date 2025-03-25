@@ -27,47 +27,30 @@ import {
 } from '@mui/icons-material';
 import { departmentApi } from '../services/api';
 
-// Giả sử bạn có một hàm để lấy thông tin user đang đăng nhập
-import { getCurrentUser } from '../services/auth'; // Bạn cần implement hàm này
-
 const DepartmentsPage = () => {
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [openDialog, setOpenDialog] = useState(false);
   const [currentDepartment, setCurrentDepartment] = useState(null);
-  const [currentUsername, setCurrentUsername] = useState(''); // Thêm state cho username
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    username: '',
+    username: '',  // Trường username
   });
 
-  // Fetch current user and departments
+  // Fetch dữ liệu phòng ban và lọc theo username
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // Lấy thông tin user hiện tại
-        const user = await getCurrentUser();
-        setCurrentUsername(user.username);
-        
-        // Set username mặc định cho form
-        setFormData(prev => ({
-          ...prev,
-          username: user.username
-        }));
-
-        // Fetch departments
         const response = await departmentApi.getAll();
-        // Lọc departments theo username của user hiện tại
-        const filteredDepartments = response.data.filter(
-          dept => dept.username === user.username
-        );
+        const currentUsername = localStorage.getItem('username'); // Lấy username từ localStorage
+        const filteredDepartments = response.data.filter(department => department.username === currentUsername); // Lọc theo username
         setDepartments(filteredDepartments);
       } catch (err) {
-        console.error('Error fetching data:', err);
-        setError('Có lỗi xảy ra khi tải dữ liệu. Vui lòng thử lại sau.');
+        console.error('Error fetching departments:', err);
+        setError('Có lỗi xảy ra khi tải dữ liệu phòng ban. Vui lòng thử lại sau.');
       } finally {
         setLoading(false);
       }
@@ -76,19 +59,21 @@ const DepartmentsPage = () => {
     fetchData();
   }, []);
 
+  // Mở form thêm hoặc chỉnh sửa phòng ban
   const handleOpenDialog = (department = null) => {
+    const loggedInUsername = localStorage.getItem('username');  // Lấy tên đăng nhập từ localStorage
     if (department) {
       setFormData({
         name: department.name,
         description: department.description || '',
-        username: department.username,
+        username: department.username || loggedInUsername,  // Đảm bảo username được điền vào
       });
       setCurrentDepartment(department);
     } else {
       setFormData({
         name: '',
         description: '',
-        username: currentUsername, // Tự động điền username của user hiện tại
+        username: loggedInUsername,  // Đảm bảo username được điền vào khi tạo mới
       });
       setCurrentDepartment(null);
     }
@@ -99,6 +84,7 @@ const DepartmentsPage = () => {
     setOpenDialog(false);
   };
 
+  // Xử lý thay đổi dữ liệu từ form
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData({
@@ -107,20 +93,22 @@ const DepartmentsPage = () => {
     });
   };
 
+  // Xử lý lưu dữ liệu phòng ban
   const handleSubmit = async () => {
     setLoading(true);
     try {
       if (currentDepartment) {
+        // Cập nhật phòng ban
         await departmentApi.update(currentDepartment.id, formData);
       } else {
+        // Tạo mới phòng ban
         await departmentApi.create(formData);
       }
       
-      // Refresh department list
+      // Làm mới danh sách phòng ban
       const response = await departmentApi.getAll();
-      const filteredDepartments = response.data.filter(
-        dept => dept.username === currentUsername
-      );
+      const currentUsername = localStorage.getItem('username');
+      const filteredDepartments = response.data.filter(department => department.username === currentUsername);
       setDepartments(filteredDepartments);
       
       handleCloseDialog();
@@ -132,16 +120,17 @@ const DepartmentsPage = () => {
     }
   };
 
+  // Xử lý xóa phòng ban
   const handleDelete = async (id) => {
     if (window.confirm('Bạn có chắc chắn muốn xóa phòng ban này?')) {
       setLoading(true);
       try {
         await departmentApi.delete(id);
         
+        // Làm mới danh sách phòng ban
         const response = await departmentApi.getAll();
-        const filteredDepartments = response.data.filter(
-          dept => dept.username === currentUsername
-        );
+        const currentUsername = localStorage.getItem('username');
+        const filteredDepartments = response.data.filter(department => department.username === currentUsername);
         setDepartments(filteredDepartments);
       } catch (err) {
         console.error('Error deleting department:', err);
@@ -222,6 +211,7 @@ const DepartmentsPage = () => {
         </TableContainer>
       )}
 
+      {/* Department Form Dialog */}
       <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
         <DialogTitle>
           {currentDepartment ? 'Chỉnh sửa phòng ban' : 'Thêm phòng ban mới'}
@@ -254,10 +244,12 @@ const DepartmentsPage = () => {
                 name="username"
                 label="Tên đăng nhập"
                 fullWidth
-                value={formData.username}
+                value={formData.username}  // Lấy giá trị từ formData
                 onChange={handleInputChange}
                 required
-                disabled // Có thể disable field này nếu không muốn user thay đổi
+                InputProps={{
+                  readOnly: true,  // Không cho phép chỉnh sửa username
+                }}
               />
             </Grid>
           </Grid>
