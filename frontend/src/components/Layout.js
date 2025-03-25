@@ -50,6 +50,10 @@ function Layout({ children }) {
   const { t } = useTranslation();
   const { currentUser, isAdmin, isEmployee, logout } = useAuth();
 
+    // Check if the current page is AdminPage and hide sidebar
+  const isAdminPage = location.pathname === '/admin';
+
+
   // Define menu items based on user role
   const getMenuItems = () => {
     // Common menu items for all logged-in users
@@ -212,6 +216,7 @@ function Layout({ children }) {
       <Box
         component="nav"
         sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
+        visibility={isAdminPage ? 'hidden' : 'visible'}
         aria-label="mailbox folders"
       >
         <Drawer

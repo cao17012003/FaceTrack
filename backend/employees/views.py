@@ -2,6 +2,7 @@ from django.shortcuts import render
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 # import face_recognition
 import numpy as np
 import pickle
@@ -13,20 +14,69 @@ import logging
 import os
 import face_recognition
 
-from .models import Employee, Department, Shift, FaceData
+from .models import Employee, Department, Shift, FaceData, UserProfile
 from .serializers import (
     EmployeeSerializer, EmployeeDetailSerializer,
-    DepartmentSerializer, ShiftSerializer, FaceDataSerializer
+    DepartmentSerializer, ShiftSerializer, FaceDataSerializer,
+    UserProfileSerializer
 )
 from .anti_spoofing import LivenessDetector
+
+class UserProfileViewSet(viewsets.ModelViewSet):
+    queryset = UserProfile.objects.all()
+    serializer_class = UserProfileSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        user = self.request.user
+        user_profile = UserProfile.objects.get(user=user)
+        
+        # Admin có thể xem tất cả user
+        if user_profile.is_admin:
+            return UserProfile.objects.all()
+        
+        # User thường chỉ có thể xem thông tin của bản thân
+        return UserProfile.objects.filter(user=user)
+    
+    def create(self, request, *args, **kwargs):
+        # Chỉ admin mới có thể tạo user mới
+        user_profile = UserProfile.objects.get(user=request.user)
+        if not user_profile.is_admin:
+            return Response(
+                {'error': 'Bạn không có quyền tạo user mới'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        return super().create(request, *args, **kwargs)
+    
+    def update(self, request, *args, **kwargs):
+        # Chỉ admin mới có thể cập nhật thông tin user
+        user_profile = UserProfile.objects.get(user=request.user)
+        if not user_profile.is_admin:
+            return Response(
+                {'error': 'Bạn không có quyền cập nhật thông tin user'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        return super().update(request, *args, **kwargs)
+    
+    def destroy(self, request, *args, **kwargs):
+        # Chỉ admin mới có thể xóa user
+        user_profile = UserProfile.objects.get(user=request.user)
+        if not user_profile.is_admin:
+            return Response(
+                {'error': 'Bạn không có quyền xóa user'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        return super().destroy(request, *args, **kwargs)
 
 class DepartmentViewSet(viewsets.ModelViewSet):
     queryset = Department.objects.all()
     serializer_class = DepartmentSerializer
+    permission_classes = [AllowAny]  # Cho phép truy cập không cần xác thực
 
 class ShiftViewSet(viewsets.ModelViewSet):
     queryset = Shift.objects.all()
     serializer_class = ShiftSerializer
+    permission_classes = [AllowAny]  # Cho phép truy cập không cần xác thực
 
 class FaceDataViewSet(viewsets.ModelViewSet):
     queryset = FaceData.objects.all()
@@ -44,6 +94,7 @@ class FaceDataViewSet(viewsets.ModelViewSet):
 class EmployeeViewSet(viewsets.ModelViewSet):
     queryset = Employee.objects.all()
     serializer_class = EmployeeSerializer
+    permission_classes = [AllowAny]  # Cho phép truy cập không cần xác thực
     
     def get_serializer_class(self):
         if self.action == 'retrieve':
@@ -51,110 +102,55 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         return EmployeeSerializer
     
     def get_queryset(self):
-        user = self.request.user
-        # Nếu người dùng là admin hoặc superuser, cho phép xem tất cả
-        if user.is_staff or user.is_superuser:
-            return Employee.objects.all()
+        # Trả về tất cả nhân viên trong môi trường development
+        return Employee.objects.all()
         
-        # Nếu là nhân viên thông thường, chỉ cho phép xem thông tin của bản thân
-        try:
-            employee = Employee.objects.get(user=user)
-            return Employee.objects.filter(id=employee.id)
-        except Employee.DoesNotExist:
-            # Nếu không tìm thấy nhân viên, trả về queryset rỗng
-            return Employee.objects.none()
+        # Code cũ để tham khảo khi cần phân quyền
+        # user = self.request.user
+        # if not user or not user.is_authenticated:
+        #     return Employee.objects.all()
+        #     
+        # try:
+        #     user_profile = UserProfile.objects.get(user=user)
+        #     if user_profile.is_admin or user_profile.is_user:
+        #         return Employee.objects.all()
+        #     try:
+        #         employee = Employee.objects.get(user=user)
+        #         return Employee.objects.filter(id=employee.id)
+        #     except Employee.DoesNotExist:
+        #         return Employee.objects.none()
+        # except UserProfile.DoesNotExist:
+        #     return Employee.objects.all()
     
     def create(self, request, *args, **kwargs):
-        """Tạo nhân viên mới và tài khoản đăng nhập"""
-        from django.contrib.auth.models import User
-        
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        # Tạo tài khoản user với username và password là employee_id
-        employee_id = serializer.validated_data['employee_id']
-        try:
-            # Kiểm tra xem user đã tồn tại chưa
-            if User.objects.filter(username=employee_id).exists():
-                return Response(
-                    {'error': f'Mã nhân viên {employee_id} đã được sử dụng làm tài khoản'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            # Tạo user mới
-            user = User.objects.create_user(
-                username=employee_id,
-                password=employee_id,  # Mật khẩu ban đầu giống mã nhân viên
-                first_name=serializer.validated_data.get('first_name', ''),
-                last_name=serializer.validated_data.get('last_name', ''),
-                email=serializer.validated_data.get('email', '')
-            )
-            
-            # Lưu thông tin nhân viên và liên kết với user
-            employee = serializer.save(user=user)
-            
-            return Response({
-                'success': True,
-                'message': f'Đã tạo nhân viên và tài khoản thành công. Tài khoản đăng nhập là {employee_id}',
-                'data': self.get_serializer(employee).data
-            }, status=status.HTTP_201_CREATED)
-            
-        except Exception as e:
-            # Nếu có lỗi, xóa user nếu đã được tạo
-            if 'user' in locals():
-                user.delete()
+        # Chỉ admin mới có thể tạo nhân viên mới
+        user_profile = UserProfile.objects.get(user=request.user)
+        if not user_profile.is_admin:
             return Response(
-                {'error': f'Lỗi khi tạo tài khoản: {str(e)}'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {'error': 'Bạn không có quyền tạo nhân viên mới'},
+                status=status.HTTP_403_FORBIDDEN
             )
+        return super().create(request, *args, **kwargs)
     
     def update(self, request, *args, **kwargs):
-        """Cập nhật thông tin nhân viên và tài khoản đăng nhập"""
-        from django.contrib.auth.models import User
-        
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        
-        # Nếu mã nhân viên thay đổi, cập nhật username của user tương ứng
-        if 'employee_id' in serializer.validated_data and instance.employee_id != serializer.validated_data['employee_id']:
-            new_employee_id = serializer.validated_data['employee_id']
-            
-            # Kiểm tra xem mã nhân viên mới đã được sử dụng chưa
-            if User.objects.filter(username=new_employee_id).exists():
-                return Response(
-                    {'error': f'Mã nhân viên {new_employee_id} đã được sử dụng làm tài khoản'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            # Cập nhật username của user
-            if instance.user:
-                instance.user.username = new_employee_id
-                instance.user.save()
-        
-        # Cập nhật thông tin user nếu có
-        if instance.user:
-            if 'first_name' in serializer.validated_data:
-                instance.user.first_name = serializer.validated_data['first_name']
-            if 'last_name' in serializer.validated_data:
-                instance.user.last_name = serializer.validated_data['last_name']
-            if 'email' in serializer.validated_data:
-                instance.user.email = serializer.validated_data['email']
-            instance.user.save()
-        
-        employee = serializer.save()
-        return Response(self.get_serializer(employee).data)
+        # Chỉ admin mới có thể cập nhật thông tin nhân viên
+        user_profile = UserProfile.objects.get(user=request.user)
+        if not user_profile.is_admin:
+            return Response(
+                {'error': 'Bạn không có quyền cập nhật thông tin nhân viên'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        return super().update(request, *args, **kwargs)
     
     def destroy(self, request, *args, **kwargs):
-        """Xóa nhân viên và tài khoản đăng nhập"""
-        instance = self.get_object()
-        
-        # Xóa user account nếu có
-        if instance.user:
-            instance.user.delete()
-        
-        instance.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        # Chỉ admin mới có thể xóa nhân viên
+        user_profile = UserProfile.objects.get(user=request.user)
+        if not user_profile.is_admin:
+            return Response(
+                {'error': 'Bạn không có quyền xóa nhân viên'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        return super().destroy(request, *args, **kwargs)
     
     @action(detail=True, methods=['get'])
     def face_data(self, request, pk=None):

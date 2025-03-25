@@ -48,6 +48,7 @@ const ShiftsPage = () => {
     start_time: null,
     end_time: null,
     description: '',
+    username: '',  // Thêm trường username
   });
 
   // Fetch data
@@ -79,6 +80,7 @@ const ShiftsPage = () => {
         start_time: startTime,
         end_time: endTime,
         description: shift.description || '',
+        username: localStorage.getItem('username'), // Tự động điền username từ localStorage
       });
       setCurrentShift(shift);
     } else {
@@ -87,6 +89,7 @@ const ShiftsPage = () => {
         start_time: null,
         end_time: null,
         description: '',
+        username: localStorage.getItem('username'), // Tự động điền username từ localStorage
       });
       setCurrentShift(null);
     }
@@ -280,6 +283,15 @@ const ShiftsPage = () => {
                   rows={4}
                 />
               </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  name="username"
+                  label="Tên đăng nhập"
+                  fullWidth
+                  value={formData.username}
+                  disabled
+                />
+              </Grid>
             </Grid>
           </LocalizationProvider>
         </DialogContent>
@@ -299,4 +311,4 @@ const ShiftsPage = () => {
   );
 };
 
-export default ShiftsPage; 
+export default ShiftsPage;

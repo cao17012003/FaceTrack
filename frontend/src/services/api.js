@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:8001/api';
+const API_URL = 'http://localhost:8000/api';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -17,6 +17,15 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// Thêm interceptor cho token (nếu cần)
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token'); // Giả sử bạn lưu token
+  if (token) {
+    config.headers.Authorization = `Token ${token}`;
+  }
+  return config;
+});
 
 // API cho nhân viên
 export const employeeApi = {
@@ -106,11 +115,17 @@ export const notificationApi = {
   getUnreadCount: (employeeId) => api.get('/notifications/unread_count/', { params: { employee_id: employeeId } }),
 };
 
+// API cho người dùng
+export const userApi = {
+  getAll: () => api.get('/users/'), // Thêm endpoint để lấy danh sách user
+};
+
 export default {
   employee: employeeApi,
   department: departmentApi,
   shift: shiftApi,
   attendance: attendanceApi,
   dashboard: dashboardApi,
-  notification: notificationApi
-}; 
+  notification: notificationApi,
+  user: userApi, // Thêm userApi vào export mặc định
+};

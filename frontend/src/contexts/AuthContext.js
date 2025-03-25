@@ -26,19 +26,29 @@ export function AuthProvider({ children }) {
     setLoading(false);
   }, []);
 
-  const login = async (username, password) => {
+  const login = async (username, password, role) => {
     try {
-      console.log(`Đang đăng nhập với username: ${username} tại ${API_BASE_URL}/api/login/`);
+      console.log(`Đang đăng nhập với username: ${username} và role: ${role} tại ${API_BASE_URL}/api/login/`);
       
       const response = await axios.post(`${API_BASE_URL}/api/login/`, {
         username,
-        password
+        password,
+        role
       });
       
       console.log('Phản hồi từ server:', response.data);
 
       if (response.data.success) {
-        const userData = response.data;
+        // Kiểm tra xem vai trò người dùng có khớp với vai trò đã chọn không
+        const userRole = response.data.user?.is_staff ? 'admin' : 'user';
+        if (userRole !== role) {
+          throw new Error(`Tài khoản này không có quyền đăng nhập với vai trò ${role === 'admin' ? 'Quản trị viên' : 'Nhân viên'}`);
+        }
+
+        const userData = {
+          ...response.data,
+          role: role
+        };
         console.log('Đăng nhập thành công:', userData);
         setCurrentUser(userData);
         localStorage.setItem('user', JSON.stringify(userData));
@@ -69,15 +79,12 @@ export function AuthProvider({ children }) {
 
   // Kiểm tra xem người dùng hiện tại có phải là admin không
   const isAdmin = () => {
-    // Tạm thời trả về true cho tất cả người dùng để test
-    return true;
-    // return currentUser && currentUser.user && currentUser.user.is_staff === true;
+    return currentUser && currentUser.role === 'admin';
   };
 
   // Kiểm tra xem người dùng hiện tại có phải là nhân viên không
   const isEmployee = () => {
-    return true;
-    // return currentUser && currentUser.employee !== undefined;
+    return currentUser && currentUser.role === 'user';
   };
 
   // Lấy thông tin đầy đủ của người dùng
@@ -91,13 +98,14 @@ export function AuthProvider({ children }) {
       username: currentUser.user ? currentUser.user.username : '',
       email: currentUser.user ? currentUser.user.email : '',
       isAdmin: isAdmin(),
-      isEmployee: isEmployee()
+      isEmployee: isEmployee(),
+      role: currentUser.role
     };
     
     if (isEmployee()) {
-      userInfo.employeeId = currentUser.employee.employee_id;
-      userInfo.department = currentUser.employee.department;
-      userInfo.shift = currentUser.employee.shift;
+      userInfo.employeeId = currentUser.employee?.employee_id;
+      userInfo.department = currentUser.employee?.department;
+      userInfo.shift = currentUser.employee?.shift;
     }
     
     return userInfo;
@@ -105,15 +113,10 @@ export function AuthProvider({ children }) {
 
   // Lấy employee_id của người dùng hiện tại
   const getEmployeeId = () => {
-    // Hardcode employee_id cho mục đích test
-    return "21011801";
-    
-    /* Bình thường sẽ là:
     if (isEmployee() && currentUser && currentUser.employee) {
       return currentUser.employee.employee_id;
     }
     return null;
-    */
   };
 
   const value = {

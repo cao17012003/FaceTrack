@@ -6,6 +6,7 @@ from django.utils import timezone
 from django.db.models import Q
 import pickle
 import datetime
+from datetime import datetime, timedelta
 import random
 import logging
 import os
@@ -13,8 +14,8 @@ import io
 from PIL import Image
 import cv2
 import numpy as np
-from datetime import timedelta
 import face_recognition
+from rest_framework.permissions import AllowAny
 
 from .models import Attendance
 from .serializers import AttendanceSerializer, AttendanceDetailSerializer, AttendanceCreateSerializer
@@ -26,6 +27,7 @@ logger = logging.getLogger(__name__)
 class AttendanceViewSet(viewsets.ModelViewSet):
     queryset = Attendance.objects.all()
     serializer_class = AttendanceSerializer
+    permission_classes = [AllowAny]  # Cho phép truy cập không cần xác thực trong development
     
     def get_serializer_class(self):
         if self.action == 'retrieve':
@@ -35,62 +37,25 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         return AttendanceSerializer
     
     def get_queryset(self):
-        queryset = Attendance.objects.all().order_by('-check_in_time')
+        # Trong môi trường development, trả về tất cả bản ghi
+        return Attendance.objects.all()
         
-        # Nếu người dùng không phải admin, chỉ hiển thị dữ liệu của họ
-        user = self.request.user
-        if not user.is_staff and not user.is_superuser:
-            try:
-                employee = Employee.objects.get(user=user)
-                queryset = queryset.filter(employee=employee)
-            except Employee.DoesNotExist:
-                # Nếu không tìm thấy nhân viên, trả về queryset rỗng
-                return Attendance.objects.none()
-        
-        # Lọc theo nhân viên
-        employee_id = self.request.query_params.get('employee')
-        if employee_id:
-            # Nếu không phải admin và employee_id khác nhân viên hiện tại, trả về rỗng
-            if not user.is_staff and not user.is_superuser:
-                try:
-                    current_employee = Employee.objects.get(user=user)
-                    if str(current_employee.id) != employee_id:
-                        return Attendance.objects.none()
-                except Employee.DoesNotExist:
-                    return Attendance.objects.none()
-            queryset = queryset.filter(employee_id=employee_id)
-        
-        # Lọc theo phòng ban
-        department_id = self.request.query_params.get('department')
-        if department_id:
-            queryset = queryset.filter(employee__department_id=department_id)
-        
-        # Lọc theo ngày
-        date_str = self.request.query_params.get('date')
-        if date_str:
-            try:
-                date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
-                queryset = queryset.filter(check_in_time__date=date)
-            except ValueError:
-                pass
-        
-        # Lọc theo khoảng thời gian
-        from_date = self.request.query_params.get('from_date')
-        to_date = self.request.query_params.get('to_date')
-        if from_date:
-            try:
-                from_date = datetime.datetime.strptime(from_date, '%Y-%m-%d').date()
-                queryset = queryset.filter(check_in_time__date__gte=from_date)
-            except ValueError:
-                pass
-        if to_date:
-            try:
-                to_date = datetime.datetime.strptime(to_date, '%Y-%m-%d').date()
-                queryset = queryset.filter(check_in_time__date__lte=to_date)
-            except ValueError:
-                pass
-        
-        return queryset
+        # Code cũ để tham khảo khi cần phân quyền
+        # user = self.request.user
+        # if not user or not user.is_authenticated:
+        #     return Attendance.objects.none()
+        #     
+        # try:
+        #     user_profile = UserProfile.objects.get(user=user)
+        #     if user_profile.is_admin or user_profile.is_user:
+        #         return Attendance.objects.all()
+        #     try:
+        #         employee = Employee.objects.get(user=user)
+        #         return Attendance.objects.filter(employee=employee)
+        #     except Employee.DoesNotExist:
+        #         return Attendance.objects.none()
+        # except UserProfile.DoesNotExist:
+        #     return Attendance.objects.all()
     
     @action(detail=False, methods=['post'])
     def check_in_out(self, request):
@@ -385,62 +350,51 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def report(self, request):
-        """Tạo báo cáo chấm công"""
+        """API endpoint để lấy báo cáo điểm danh"""
         start_date = request.query_params.get('start_date')
         end_date = request.query_params.get('end_date')
-        employee_id = request.query_params.get('employee_id')
-        department_id = request.query_params.get('department')
         
-        queryset = self.get_queryset()
+        if not start_date or not end_date:
+            return Response({
+                'error': 'Vui lòng cung cấp start_date và end_date'
+            }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Log thông tin để debug
-        logger.info(f"Báo cáo chấm công: start_date={start_date}, end_date={end_date}, employee_id={employee_id}, department_id={department_id}")
+        try:
+            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+        except ValueError:
+            return Response({
+                'error': 'Định dạng ngày không hợp lệ. Sử dụng định dạng YYYY-MM-DD'
+            }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Lọc theo ngày
-        if start_date and end_date:
-            try:
-                start = datetime.datetime.strptime(start_date, '%Y-%m-%d').date()
-                end = datetime.datetime.strptime(end_date, '%Y-%m-%d').date()
-                queryset = queryset.filter(attendance_date__range=[start, end])
-                logger.info(f"Lọc theo ngày: {start} đến {end}")
-            except ValueError as e:
-                logger.error(f"Lỗi định dạng ngày: {e}")
-                return Response(
-                    {'error': 'Định dạng ngày không hợp lệ. Sử dụng định dạng YYYY-MM-DD'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+        # Lấy tất cả bản ghi điểm danh trong khoảng thời gian
+        queryset = self.get_queryset().filter(
+            attendance_date__range=[start_date, end_date]
+        )
         
-        # Lọc theo nhân viên ID
-        if employee_id:
-            try:
-                # Tìm nhân viên theo employee_id (không phải id)
-                employee = Employee.objects.filter(employee_id=employee_id).first()
-                if employee:
-                    queryset = queryset.filter(employee=employee)
-                    logger.info(f"Lọc theo nhân viên: employee_id={employee_id}, employee.id={employee.id}")
-                else:
-                    logger.warning(f"Không tìm thấy nhân viên với employee_id={employee_id}")
-            except Exception as e:
-                logger.error(f"Lỗi khi lọc theo nhân viên: {e}")
-        
-        # Lọc theo phòng ban
-        if department_id:
-            try:
-                queryset = queryset.filter(employee__department_id=department_id)
-                logger.info(f"Lọc theo phòng ban: department_id={department_id}")
-            except Exception as e:
-                logger.error(f"Lỗi khi lọc theo phòng ban: {e}")
-        
-        # Log số lượng kết quả
-        logger.info(f"Tổng số kết quả: {queryset.count()}")
-        
-        serializer = AttendanceSerializer(queryset, many=True)
+        # Tạo báo cáo
+        report_data = []
+        for attendance in queryset:
+            report_data.append({
+                'id': attendance.id,
+                'employee_id': attendance.employee.employee_id,
+                'employee_name': f"{attendance.employee.first_name} {attendance.employee.last_name}",
+                'department': attendance.employee.department.name if attendance.employee.department else None,
+                'attendance_date': attendance.attendance_date,
+                'check_in_time': attendance.check_in_time,
+                'check_out_time': attendance.check_out_time,
+                'status': attendance.status,
+                'check_in_image': request.build_absolute_uri(attendance.check_in_image.url) if attendance.check_in_image else None,
+                'check_out_image': request.build_absolute_uri(attendance.check_out_image.url) if attendance.check_out_image else None
+            })
         
         return Response({
-            'total_records': queryset.count(),
-            'data': serializer.data
+            'start_date': start_date,
+            'end_date': end_date,
+            'total_records': len(report_data),
+            'data': report_data
         })
-        
+    
     @action(detail=False, methods=['get'])
     def today(self, request):
         """Lấy danh sách chấm công hôm nay"""

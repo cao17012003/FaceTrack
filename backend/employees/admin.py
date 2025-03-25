@@ -29,3 +29,5 @@ class FaceDataAdmin(admin.ModelAdmin):
     list_filter = ['created_at']
     search_fields = ['employee__first_name', 'employee__last_name', 'employee__employee_id']
     readonly_fields = ['image']
+
+

@@ -27,27 +27,47 @@ import {
 } from '@mui/icons-material';
 import { departmentApi } from '../services/api';
 
+// Giả sử bạn có một hàm để lấy thông tin user đang đăng nhập
+import { getCurrentUser } from '../services/auth'; // Bạn cần implement hàm này
+
 const DepartmentsPage = () => {
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [openDialog, setOpenDialog] = useState(false);
   const [currentDepartment, setCurrentDepartment] = useState(null);
+  const [currentUsername, setCurrentUsername] = useState(''); // Thêm state cho username
   const [formData, setFormData] = useState({
     name: '',
     description: '',
+    username: '',
   });
 
-  // Fetch data
+  // Fetch current user and departments
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
+        // Lấy thông tin user hiện tại
+        const user = await getCurrentUser();
+        setCurrentUsername(user.username);
+        
+        // Set username mặc định cho form
+        setFormData(prev => ({
+          ...prev,
+          username: user.username
+        }));
+
+        // Fetch departments
         const response = await departmentApi.getAll();
-        setDepartments(response.data);
+        // Lọc departments theo username của user hiện tại
+        const filteredDepartments = response.data.filter(
+          dept => dept.username === user.username
+        );
+        setDepartments(filteredDepartments);
       } catch (err) {
-        console.error('Error fetching departments:', err);
-        setError('Có lỗi xảy ra khi tải dữ liệu phòng ban. Vui lòng thử lại sau.');
+        console.error('Error fetching data:', err);
+        setError('Có lỗi xảy ra khi tải dữ liệu. Vui lòng thử lại sau.');
       } finally {
         setLoading(false);
       }
@@ -61,12 +81,14 @@ const DepartmentsPage = () => {
       setFormData({
         name: department.name,
         description: department.description || '',
+        username: department.username,
       });
       setCurrentDepartment(department);
     } else {
       setFormData({
         name: '',
         description: '',
+        username: currentUsername, // Tự động điền username của user hiện tại
       });
       setCurrentDepartment(null);
     }
@@ -89,16 +111,17 @@ const DepartmentsPage = () => {
     setLoading(true);
     try {
       if (currentDepartment) {
-        // Update
         await departmentApi.update(currentDepartment.id, formData);
       } else {
-        // Create
         await departmentApi.create(formData);
       }
       
       // Refresh department list
       const response = await departmentApi.getAll();
-      setDepartments(response.data);
+      const filteredDepartments = response.data.filter(
+        dept => dept.username === currentUsername
+      );
+      setDepartments(filteredDepartments);
       
       handleCloseDialog();
     } catch (err) {
@@ -115,9 +138,11 @@ const DepartmentsPage = () => {
       try {
         await departmentApi.delete(id);
         
-        // Refresh department list
         const response = await departmentApi.getAll();
-        setDepartments(response.data);
+        const filteredDepartments = response.data.filter(
+          dept => dept.username === currentUsername
+        );
+        setDepartments(filteredDepartments);
       } catch (err) {
         console.error('Error deleting department:', err);
         setError('Có lỗi xảy ra khi xóa phòng ban.');
@@ -158,6 +183,7 @@ const DepartmentsPage = () => {
               <TableRow>
                 <TableCell>Tên phòng ban</TableCell>
                 <TableCell>Mô tả</TableCell>
+                <TableCell>Tên đăng nhập</TableCell>
                 <TableCell>Thao tác</TableCell>
               </TableRow>
             </TableHead>
@@ -167,6 +193,7 @@ const DepartmentsPage = () => {
                   <TableRow key={department.id}>
                     <TableCell>{department.name}</TableCell>
                     <TableCell>{department.description}</TableCell>
+                    <TableCell>{department.username}</TableCell>
                     <TableCell>
                       <IconButton
                         color="primary"
@@ -185,7 +212,7 @@ const DepartmentsPage = () => {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={3} align="center">
+                  <TableCell colSpan={4} align="center">
                     Không có dữ liệu phòng ban
                   </TableCell>
                 </TableRow>
@@ -195,7 +222,6 @@ const DepartmentsPage = () => {
         </TableContainer>
       )}
 
-      {/* Department Form Dialog */}
       <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
         <DialogTitle>
           {currentDepartment ? 'Chỉnh sửa phòng ban' : 'Thêm phòng ban mới'}
@@ -223,6 +249,17 @@ const DepartmentsPage = () => {
                 rows={4}
               />
             </Grid>
+            <Grid item xs={12}>
+              <TextField
+                name="username"
+                label="Tên đăng nhập"
+                fullWidth
+                value={formData.username}
+                onChange={handleInputChange}
+                required
+                disabled // Có thể disable field này nếu không muốn user thay đổi
+              />
+            </Grid>
           </Grid>
         </DialogContent>
         <DialogActions>
@@ -241,4 +278,4 @@ const DepartmentsPage = () => {
   );
 };
 
-export default DepartmentsPage; 
+export default DepartmentsPage;

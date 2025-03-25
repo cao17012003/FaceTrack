@@ -12,17 +12,30 @@ import EmployeesPage from './pages/EmployeesPage';
 import DepartmentsPage from './pages/DepartmentsPage';
 import ShiftsPage from './pages/ShiftsPage';
 import CalendarPage from './pages/CalendarPage';
+import AdminPage from './pages/AdminPage';
 import Layout from './components/Layout';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 
-// Component bảo vệ route
+// Component bảo vệ route cho người dùng đã đăng nhập
 const ProtectedRoute = ({ children }) => {
   const isAuthenticated = localStorage.getItem('user') !== null;
   
   if (!isAuthenticated) {
     return <Navigate to="/login" />;
+  }
+  
+  return children;
+};
+
+// Component bảo vệ route cho admin
+const AdminRoute = ({ children }) => {
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const isAdmin = user.role === 'admin';
+  
+  if (!isAdmin) {
+    return <Navigate to="/" />;
   }
   
   return children;
@@ -63,6 +76,16 @@ function App() {
             <Router>
               <Routes>
                 <Route path="/login" element={<LoginPage />} />
+                <Route 
+                  path="/admin" 
+                  element={
+                    <AdminRoute>
+                      <Layout>
+                        <AdminPage />
+                      </Layout>
+                    </AdminRoute>
+                  } 
+                />
                 <Route 
                   path="/" 
                   element={

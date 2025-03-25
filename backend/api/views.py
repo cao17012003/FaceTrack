@@ -9,7 +9,7 @@ from django.contrib.auth import authenticate
 from rest_framework.permissions import AllowAny
 from rest_framework.authtoken.models import Token
 
-from employees.models import Employee, Department
+from employees.models import Employee, Department, UserProfile
 from attendance.models import Attendance
 
 @api_view(['POST'])
@@ -18,6 +18,7 @@ def login(request):
     """API endpoint xử lý đăng nhập"""
     username = request.data.get('username')
     password = request.data.get('password')
+    role = request.data.get('role', 'user')  # Mặc định là user nếu không có role
     
     if not username or not password:
         return Response({
@@ -26,9 +27,37 @@ def login(request):
     
     user = authenticate(username=username, password=password)
     
-    if user is not None:
+    if user is not None and user.is_authenticated:
         # Tạo hoặc lấy token
         token, created = Token.objects.get_or_create(user=user)
+        
+        # Kiểm tra quyền đăng nhập dựa trên username
+        if username == 'admin':
+            # Tài khoản admin chỉ có thể đăng nhập với vai trò admin
+            if role != 'admin':
+                return Response({
+                    'error': 'Tài khoản admin chỉ có thể đăng nhập với vai trò Quản trị viên'
+                }, status=status.HTTP_403_FORBIDDEN)
+        else:
+            # Các tài khoản khác chỉ có thể đăng nhập với vai trò user
+            if role == 'admin':
+                return Response({
+                    'error': 'Tài khoản này không có quyền đăng nhập với vai trò Quản trị viên'
+                }, status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            # Kiểm tra UserProfile
+            user_profile = UserProfile.objects.get(user=user)
+            user_profile.is_admin = (username == 'admin')
+            user_profile.is_user = (username != 'admin')
+            user_profile.save()
+        except UserProfile.DoesNotExist:
+            # Nếu không có UserProfile, tạo mới
+            UserProfile.objects.create(
+                user=user,
+                is_admin=(username == 'admin'),
+                is_user=(username != 'admin')
+            )
         
         # Lấy thông tin nhân viên nếu có
         try:
@@ -36,6 +65,7 @@ def login(request):
             return Response({
                 'success': True,
                 'token': token.key,
+                'role': role,
                 'user': {
                     'id': user.id,
                     'username': user.username,
@@ -43,6 +73,7 @@ def login(request):
                     'last_name': user.last_name,
                     'email': user.email,
                     'is_staff': user.is_staff,
+                    'is_superuser': user.is_superuser
                 },
                 'employee': {
                     'id': employee.id,
@@ -56,6 +87,7 @@ def login(request):
             return Response({
                 'success': True,
                 'token': token.key,
+                'role': role,
                 'user': {
                     'id': user.id,
                     'username': user.username,
@@ -63,6 +95,7 @@ def login(request):
                     'last_name': user.last_name,
                     'email': user.email,
                     'is_staff': user.is_staff,
+                    'is_superuser': user.is_superuser
                 }
             })
     else:
