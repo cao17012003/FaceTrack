@@ -29,44 +29,65 @@ class UserProfileViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
-        user_profile = UserProfile.objects.get(user=user)
-        
-        # Admin có thể xem tất cả user
-        if user_profile.is_admin:
-            return UserProfile.objects.all()
-        
-        # User thường chỉ có thể xem thông tin của bản thân
-        return UserProfile.objects.filter(user=user)
+        try:
+            user_profile = UserProfile.objects.get(username=user.username)
+            
+            # Admin có thể xem tất cả user
+            if user_profile.is_admin:
+                return UserProfile.objects.all()
+            
+            # User thường chỉ có thể xem thông tin của bản thân
+            return UserProfile.objects.filter(username=user.username)
+        except UserProfile.DoesNotExist:
+            return UserProfile.objects.none()
     
     def create(self, request, *args, **kwargs):
         # Chỉ admin mới có thể tạo user mới
-        user_profile = UserProfile.objects.get(user=request.user)
-        if not user_profile.is_admin:
+        try:
+            user_profile = UserProfile.objects.get(username=request.user.username)
+            if not user_profile.is_admin:
+                return Response(
+                    {'error': 'Bạn không có quyền tạo user mới'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            return super().create(request, *args, **kwargs)
+        except UserProfile.DoesNotExist:
             return Response(
-                {'error': 'Bạn không có quyền tạo user mới'},
-                status=status.HTTP_403_FORBIDDEN
+                {'error': 'Không tìm thấy thông tin người dùng'},
+                status=status.HTTP_404_NOT_FOUND
             )
-        return super().create(request, *args, **kwargs)
     
     def update(self, request, *args, **kwargs):
         # Chỉ admin mới có thể cập nhật thông tin user
-        user_profile = UserProfile.objects.get(user=request.user)
-        if not user_profile.is_admin:
+        try:
+            user_profile = UserProfile.objects.get(username=request.user.username)
+            if not user_profile.is_admin:
+                return Response(
+                    {'error': 'Bạn không có quyền cập nhật thông tin user'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            return super().update(request, *args, **kwargs)
+        except UserProfile.DoesNotExist:
             return Response(
-                {'error': 'Bạn không có quyền cập nhật thông tin user'},
-                status=status.HTTP_403_FORBIDDEN
+                {'error': 'Không tìm thấy thông tin người dùng'},
+                status=status.HTTP_404_NOT_FOUND
             )
-        return super().update(request, *args, **kwargs)
     
     def destroy(self, request, *args, **kwargs):
         # Chỉ admin mới có thể xóa user
-        user_profile = UserProfile.objects.get(user=request.user)
-        if not user_profile.is_admin:
+        try:
+            user_profile = UserProfile.objects.get(username=request.user.username)
+            if not user_profile.is_admin:
+                return Response(
+                    {'error': 'Bạn không có quyền xóa user'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            return super().destroy(request, *args, **kwargs)
+        except UserProfile.DoesNotExist:
             return Response(
-                {'error': 'Bạn không có quyền xóa user'},
-                status=status.HTTP_403_FORBIDDEN
+                {'error': 'Không tìm thấy thông tin người dùng'},
+                status=status.HTTP_404_NOT_FOUND
             )
-        return super().destroy(request, *args, **kwargs)
 
 class DepartmentViewSet(viewsets.ModelViewSet):
     queryset = Department.objects.all()
@@ -94,63 +115,82 @@ class FaceDataViewSet(viewsets.ModelViewSet):
 class EmployeeViewSet(viewsets.ModelViewSet):
     queryset = Employee.objects.all()
     serializer_class = EmployeeSerializer
-    permission_classes = [AllowAny]  # Cho phép truy cập không cần xác thực
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        """Lấy danh sách nhân viên dựa trên quyền của user"""
+        user = self.request.user
+        if not user:
+            return Employee.objects.none()
+            
+        try:
+            user_profile = UserProfile.objects.get(username=user.username)
+            if user_profile.is_admin:
+                return Employee.objects.all()
+            else:
+                try:
+                    employee = Employee.objects.get(username=user.username)
+                    return Employee.objects.filter(id=employee.id)
+                except Employee.DoesNotExist:
+                    return Employee.objects.none()
+        except UserProfile.DoesNotExist:
+            return Employee.objects.none()
+    
+    def create(self, request, *args, **kwargs):
+        """Tạo nhân viên mới
+           Đã loại bỏ kiểm tra admin để cho phép tất cả người dùng đã xác thực tạo nhân viên
+        """
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+    
+    def update(self, request, *args, **kwargs):
+        """Cập nhật thông tin nhân viên.
+           (Nếu muốn bảo vệ thao tác này, bạn có thể giữ kiểm tra admin ở đây.)
+        """
+        try:
+            user_profile = UserProfile.objects.get(username=request.user.username)
+            if not user_profile.is_admin:
+                return Response({
+                    'error': 'Bạn không có quyền cập nhật thông tin nhân viên'
+                }, status=status.HTTP_403_FORBIDDEN)
+                
+            partial = kwargs.pop('partial', False)
+            instance = self.get_object()
+            serializer = self.get_serializer(instance, data=request.data, partial=partial)
+            serializer.is_valid(raise_exception=True)
+            self.perform_update(serializer)
+            return Response(serializer.data)
+        except UserProfile.DoesNotExist:
+            return Response({
+                'error': 'Không tìm thấy thông tin người dùng'
+            }, status=status.HTTP_404_NOT_FOUND)
+    
+    def destroy(self, request, *args, **kwargs):
+        """Xóa nhân viên.
+           (Nếu muốn bảo vệ thao tác này, bạn có thể giữ kiểm tra admin ở đây.)
+        """
+        try:
+            user_profile = UserProfile.objects.get(username=request.user.username)
+            if not user_profile.is_admin:
+                return Response({
+                    'error': 'Bạn không có quyền xóa nhân viên'
+                }, status=status.HTTP_403_FORBIDDEN)
+                
+            instance = self.get_object()
+            self.perform_destroy(instance)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except UserProfile.DoesNotExist:
+            return Response({
+                'error': 'Không tìm thấy thông tin người dùng'
+            }, status=status.HTTP_404_NOT_FOUND)
     
     def get_serializer_class(self):
         if self.action == 'retrieve':
             return EmployeeDetailSerializer
         return EmployeeSerializer
-    
-    def get_queryset(self):
-        # Trả về tất cả nhân viên trong môi trường development
-        return Employee.objects.all()
-        
-        # Code cũ để tham khảo khi cần phân quyền
-        # user = self.request.user
-        # if not user or not user.is_authenticated:
-        #     return Employee.objects.all()
-        #     
-        # try:
-        #     user_profile = UserProfile.objects.get(user=user)
-        #     if user_profile.is_admin or user_profile.is_user:
-        #         return Employee.objects.all()
-        #     try:
-        #         employee = Employee.objects.get(user=user)
-        #         return Employee.objects.filter(id=employee.id)
-        #     except Employee.DoesNotExist:
-        #         return Employee.objects.none()
-        # except UserProfile.DoesNotExist:
-        #     return Employee.objects.all()
-    
-    def create(self, request, *args, **kwargs):
-        # Chỉ admin mới có thể tạo nhân viên mới
-        user_profile = UserProfile.objects.get(user=request.user)
-        if not user_profile.is_admin:
-            return Response(
-                {'error': 'Bạn không có quyền tạo nhân viên mới'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        return super().create(request, *args, **kwargs)
-    
-    def update(self, request, *args, **kwargs):
-        # Chỉ admin mới có thể cập nhật thông tin nhân viên
-        user_profile = UserProfile.objects.get(user=request.user)
-        if not user_profile.is_admin:
-            return Response(
-                {'error': 'Bạn không có quyền cập nhật thông tin nhân viên'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        return super().update(request, *args, **kwargs)
-    
-    def destroy(self, request, *args, **kwargs):
-        # Chỉ admin mới có thể xóa nhân viên
-        user_profile = UserProfile.objects.get(user=request.user)
-        if not user_profile.is_admin:
-            return Response(
-                {'error': 'Bạn không có quyền xóa nhân viên'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        return super().destroy(request, *args, **kwargs)
     
     @action(detail=True, methods=['get'])
     def face_data(self, request, pk=None):

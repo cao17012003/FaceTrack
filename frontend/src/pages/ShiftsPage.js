@@ -48,7 +48,7 @@ const ShiftsPage = () => {
     start_time: null,
     end_time: null,
     description: '',
-    username: '',  // Thêm trường username
+    username: '', // Thêm trường username
   });
 
   // Fetch data
@@ -121,10 +121,12 @@ const ShiftsPage = () => {
       // Format time values for API
       const dataToSubmit = {
         ...formData,
-        start_time: formData.start_time ? 
-          `${formData.start_time.getHours().toString().padStart(2, '0')}:${formData.start_time.getMinutes().toString().padStart(2, '0')}` : null,
-        end_time: formData.end_time ? 
-          `${formData.end_time.getHours().toString().padStart(2, '0')}:${formData.end_time.getMinutes().toString().padStart(2, '0')}` : null,
+        start_time: formData.start_time 
+          ? `${formData.start_time.getHours().toString().padStart(2, '0')}:${formData.start_time.getMinutes().toString().padStart(2, '0')}` 
+          : null,
+        end_time: formData.end_time 
+          ? `${formData.end_time.getHours().toString().padStart(2, '0')}:${formData.end_time.getMinutes().toString().padStart(2, '0')}` 
+          : null,
       };
       
       if (currentShift) {
@@ -132,7 +134,13 @@ const ShiftsPage = () => {
         await shiftApi.update(currentShift.id, dataToSubmit);
       } else {
         // Create
-        await shiftApi.create(dataToSubmit);
+        const createdShiftResponse = await shiftApi.create(dataToSubmit);
+        // Lưu lại id và name của ca làm việc mới tạo vào localStorage
+        if (createdShiftResponse && createdShiftResponse.data) {
+          const { id, name } = createdShiftResponse.data;
+          localStorage.setItem('shiftInfo', JSON.stringify({ id, name }));
+          console.log('Đã lưu shift:', { id, name });
+        }
       }
       
       // Refresh shift list

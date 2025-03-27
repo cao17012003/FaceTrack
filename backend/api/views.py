@@ -6,11 +6,12 @@ from django.utils import timezone
 from datetime import timedelta
 from django.db.models import Count
 from django.contrib.auth import authenticate
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.authtoken.models import Token
 
 from employees.models import Employee, Department, UserProfile
 from attendance.models import Attendance
+from employees.serializers import UserProfileSerializer, EmployeeSerializer
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -18,90 +19,71 @@ def login(request):
     """API endpoint xử lý đăng nhập"""
     username = request.data.get('username')
     password = request.data.get('password')
-    role = request.data.get('role', 'user')  # Mặc định là user nếu không có role
-    
+    role = request.data.get('role')
+
     if not username or not password:
         return Response({
-            'error': 'Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu'
-        }, status=status.HTTP_400_BAD_REQUEST)
-    
+            'success': False,
+            'error': 'Vui lòng nhập đầy đủ thông tin đăng nhập'
+        }, status=400)
+
     user = authenticate(username=username, password=password)
     
-    if user is not None and user.is_authenticated:
-        # Tạo hoặc lấy token
-        token, created = Token.objects.get_or_create(user=user)
-        
-        # Kiểm tra quyền đăng nhập dựa trên username
-        if username == 'admin':
-            # Tài khoản admin chỉ có thể đăng nhập với vai trò admin
-            if role != 'admin':
-                return Response({
-                    'error': 'Tài khoản admin chỉ có thể đăng nhập với vai trò Quản trị viên'
-                }, status=status.HTTP_403_FORBIDDEN)
-        else:
-            # Các tài khoản khác chỉ có thể đăng nhập với vai trò user
-            if role == 'admin':
-                return Response({
-                    'error': 'Tài khoản này không có quyền đăng nhập với vai trò Quản trị viên'
-                }, status=status.HTTP_403_FORBIDDEN)
-        
-        try:
-            # Kiểm tra UserProfile
-            user_profile = UserProfile.objects.get(user=user)
-            user_profile.is_admin = (username == 'admin')
-            user_profile.is_user = (username != 'admin')
-            user_profile.save()
-        except UserProfile.DoesNotExist:
-            # Nếu không có UserProfile, tạo mới
-            UserProfile.objects.create(
-                user=user,
-                is_admin=(username == 'admin'),
-                is_user=(username != 'admin')
-            )
-        
-        # Lấy thông tin nhân viên nếu có
-        try:
-            employee = Employee.objects.get(user=user)
-            return Response({
-                'success': True,
-                'token': token.key,
-                'role': role,
-                'user': {
-                    'id': user.id,
-                    'username': user.username,
-                    'first_name': user.first_name,
-                    'last_name': user.last_name,
-                    'email': user.email,
-                    'is_staff': user.is_staff,
-                    'is_superuser': user.is_superuser
-                },
-                'employee': {
-                    'id': employee.id,
-                    'employee_id': employee.employee_id,
-                    'department': employee.department.name if employee.department else None,
-                    'shift': employee.shift.name if employee.shift else None,
-                }
-            })
-        except Employee.DoesNotExist:
-            # Trường hợp tài khoản admin không liên kết với nhân viên
-            return Response({
-                'success': True,
-                'token': token.key,
-                'role': role,
-                'user': {
-                    'id': user.id,
-                    'username': user.username,
-                    'first_name': user.first_name,
-                    'last_name': user.last_name,
-                    'email': user.email,
-                    'is_staff': user.is_staff,
-                    'is_superuser': user.is_superuser
-                }
-            })
-    else:
+    if not user:
         return Response({
+            'success': False,
             'error': 'Tên đăng nhập hoặc mật khẩu không chính xác'
-        }, status=status.HTTP_401_UNAUTHORIZED)
+        }, status=401)
+
+    try:
+        user_profile = UserProfile.objects.get(username=username)
+    except UserProfile.DoesNotExist:
+        # Tự động tạo UserProfile cho admin nếu chưa có
+        if user.is_staff:
+            user_profile = UserProfile.objects.create(
+                username=username,
+                is_admin=True,
+                is_user=False
+            )
+        else:
+            user_profile = UserProfile.objects.create(
+                username=username,
+                is_admin=False,
+                is_user=True
+            )
+
+    # Kiểm tra quyền truy cập
+    if role == 'admin' and not user_profile.is_admin:
+        return Response({
+            'success': False,
+            'error': 'Tài khoản này không có quyền truy cập quản trị'
+        }, status=403)
+    elif role == 'user' and not user_profile.is_user:
+        return Response({
+            'success': False,
+            'error': 'Tài khoản này không có quyền truy cập người dùng'
+        }, status=403)
+
+    # Lấy hoặc tạo token
+    token, created = Token.objects.get_or_create(user=user)
+
+    # Lấy thông tin employee nếu có
+    try:
+        employee = Employee.objects.get(username=username)
+        employee_data = EmployeeSerializer(employee).data
+    except Employee.DoesNotExist:
+        employee_data = None
+
+    return Response({
+        'success': True,
+        'token': token.key,
+        'user': {
+            'username': user.username,
+            'is_staff': user.is_staff,
+            'is_superuser': user.is_superuser
+        },
+        'employee': employee_data
+    })
 
 class DashboardViewSet(viewsets.ViewSet):
     """

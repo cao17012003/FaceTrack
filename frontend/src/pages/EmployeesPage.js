@@ -53,14 +53,18 @@ const EmployeesPage = () => {
   const [openFaceDialog, setOpenFaceDialog] = useState(false);
   const [currentEmployee, setCurrentEmployee] = useState(null);
   const [formData, setFormData] = useState({
+    username: '',
     employee_id: '',
     first_name: '',
     last_name: '',
     email: '',
     phone: '',
-    department: '',
-    shift: '',
+    department: '', // lưu id của phòng ban
+    shift: '',      // lưu id của ca làm việc
+    is_active: false,
+    profile_image: null,
   });
+
   const { enqueueSnackbar } = useSnackbar();
 
   // Fetch data
@@ -71,12 +75,19 @@ const EmployeesPage = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
+      const currentUsername = localStorage.getItem('username');
       const [employeesRes, departmentsRes, shiftsRes] = await Promise.all([
         employeeApi.getAll(),
         departmentApi.getAll(),
         shiftApi.getAll(),
       ]);
-      setEmployees(employeesRes.data);
+
+      // Lọc nhân viên dựa trên username nếu không phải admin
+      const filteredEmployees = currentUsername === 'admin'
+        ? employeesRes.data
+        : employeesRes.data.filter(employee => employee.username === currentUsername);
+
+      setEmployees(filteredEmployees);
       setDepartments(departmentsRes.data);
       setShifts(shiftsRes.data);
     } catch (err) {
@@ -87,11 +98,14 @@ const EmployeesPage = () => {
     }
   };
 
-  // Thêm hàm fetchEmployees để cập nhật danh sách nhân viên sau khi chỉnh sửa
   const fetchEmployees = async () => {
     try {
+      const currentUsername = localStorage.getItem('username');
       const response = await employeeApi.getAll();
-      setEmployees(response.data);
+      const filteredEmployees = currentUsername === 'admin'
+        ? response.data
+        : response.data.filter(employee => employee.username === currentUsername);
+      setEmployees(filteredEmployees);
     } catch (err) {
       console.error('Error fetching employees:', err);
       setError('Có lỗi xảy ra khi tải danh sách nhân viên.');
@@ -99,33 +113,38 @@ const EmployeesPage = () => {
   };
 
   const handleEditEmployee = (employee) => {
+    const loggedInUsername = localStorage.getItem('username');
     setFormData({
+      username: employee.username || loggedInUsername,
       employee_id: employee.employee_id,
       first_name: employee.first_name,
       last_name: employee.last_name,
-      email: employee.email,
-      phone: employee.phone,
-      department: employee.department?.id || '',
-      shift: employee.shift?.id || '',
+      email: employee.email || '',
+      phone: employee.phone || '',
+      department: employee.department?.id || '', // Lấy id của phòng ban
+      shift: employee.shift?.id || '',           // Lấy id của ca làm việc
     });
     setCurrentEmployee(employee);
     setOpenDialog(true);
   };
 
   const handleOpenDialog = (employee = null) => {
+    const loggedInUsername = localStorage.getItem('username');
     if (employee) {
       setFormData({
+        username: employee.username || loggedInUsername,
         employee_id: employee.employee_id,
         first_name: employee.first_name,
         last_name: employee.last_name,
         email: employee.email || '',
         phone: employee.phone || '',
-        department: employee.department,
-        shift: employee.shift,
+        department: employee.department?.id || '',
+        shift: employee.shift?.id || '',
       });
       setCurrentEmployee(employee);
     } else {
       setFormData({
+        username: loggedInUsername,
         employee_id: '',
         first_name: '',
         last_name: '',
@@ -163,13 +182,19 @@ const EmployeesPage = () => {
   const handleSubmit = async () => {
     setLoading(true);
     try {
+      // Đảm bảo trường department và shift được gửi dưới dạng id (số)
+        const dataToSubmit = {
+          ...formData,
+          department: formData.department ? Number(formData.department) : null,
+          shift: formData.shift ? Number(formData.shift) : null,
+        };
+
+
       if (currentEmployee) {
-        // Update
-        await employeeApi.update(currentEmployee.id, formData);
+        await employeeApi.update(currentEmployee.id, dataToSubmit);
         enqueueSnackbar('Cập nhật thông tin nhân viên thành công!', { variant: 'success' });
       } else {
-        // Create
-        const response = await employeeApi.create(formData);
+        const response = await employeeApi.create(dataToSubmit);
         enqueueSnackbar(
           <div>
             <div>Thêm nhân viên thành công!</div>
@@ -189,10 +214,7 @@ const EmployeesPage = () => {
           }
         );
       }
-      
-      // Refresh employee list
       fetchEmployees();
-      
       handleCloseDialog();
     } catch (err) {
       console.error('Error saving employee:', err);
@@ -243,6 +265,7 @@ const EmployeesPage = () => {
     const [imageDialogOpen, setImageDialogOpen] = useState(false);
     const [editMode, setEditMode] = useState(false);
     const [editData, setEditData] = useState({
+      username: '',
       employee_id: '',
       first_name: '',
       last_name: '',
@@ -256,15 +279,13 @@ const EmployeesPage = () => {
     useEffect(() => {
       if (employee && open) {
         setLoading(true);
-        // Lấy dữ liệu khuôn mặt đã đăng ký
+        const loggedInUsername = localStorage.getItem('username');
         employeeApi.getFaceData(employee.id)
           .then(response => {
-            // Cấu trúc dữ liệu thay đổi - giờ có face_data và summary
             if (response.data.face_data) {
               setFaceData(response.data.face_data);
               setFaceDataSummary(response.data.summary);
             } else {
-              // Xử lý cho API cũ nếu cần
               setFaceData(response.data);
             }
           })
@@ -275,8 +296,8 @@ const EmployeesPage = () => {
             setLoading(false);
           });
         
-        // Khởi tạo dữ liệu chỉnh sửa
         setEditData({
+          username: employee.username || loggedInUsername,
           employee_id: employee.employee_id,
           first_name: employee.first_name,
           last_name: employee.last_name,
@@ -303,7 +324,6 @@ const EmployeesPage = () => {
         setLoading(true);
         employeeApi.deleteFaceData(faceId)
           .then(response => {
-            // Cập nhật lại danh sách khuôn mặt
             setFaceData(faceData.filter(face => face.id !== faceId));
             enqueueSnackbar('Xóa dữ liệu khuôn mặt thành công!', { variant: 'success' });
           })
@@ -336,10 +356,8 @@ const EmployeesPage = () => {
       employeeApi.update(employee.id, editData)
         .then(() => {
           enqueueSnackbar('Cập nhật thông tin nhân viên thành công!', { variant: 'success' });
-          // Cập nhật lại danh sách nhân viên
           fetchEmployees();
           setEditMode(false);
-          // Đóng dialog
           onClose();
         })
         .catch(err => {
@@ -371,6 +389,17 @@ const EmployeesPage = () => {
             <Box sx={{ flex: 1 }}>
               {editMode ? (
                 <Grid container spacing={2} sx={{ mt: 1 }}>
+                  <Grid item xs={12}>
+                    <TextField
+                      name="username"
+                      label="Tên đăng nhập"
+                      fullWidth
+                      value={editData.username}
+                      onChange={handleEditInputChange}
+                      required
+                      InputProps={{ readOnly: true }}
+                    />
+                  </Grid>
                   <Grid item xs={12}>
                     <TextField
                       name="employee_id"
@@ -484,7 +513,7 @@ const EmployeesPage = () => {
                     </Avatar>
                     <Typography variant="h5">{employee.first_name} {employee.last_name}</Typography>
                   </Box>
-                  
+                  <Typography variant="body1"><strong>Tên đăng nhập:</strong> {employee.username}</Typography>
                   <Typography variant="body1"><strong>Mã nhân viên:</strong> {employee.employee_id}</Typography>
                   <Typography variant="body1"><strong>Phòng ban:</strong> {employee.department?.name || 'Chưa phân phòng'}</Typography>
                   <Typography variant="body1"><strong>Ca làm việc:</strong> {employee.shift?.name || 'Chưa phân ca'}</Typography>
@@ -494,7 +523,7 @@ const EmployeesPage = () => {
                 </>
               )}
             </Box>
-            
+            {/* Phần hiển thị dữ liệu khuôn mặt */}
             <Box sx={{ flex: 1 }}>
               <Typography variant="h6" gutterBottom>
                 Dữ liệu khuôn mặt đã đăng ký
@@ -623,7 +652,6 @@ const EmployeesPage = () => {
           </Box>
         </DialogContent>
         
-        {/* Dialog hiển thị ảnh khuôn mặt phóng to */}
         <Dialog open={imageDialogOpen} onClose={handleImageDialogClose} maxWidth="md">
           <DialogTitle>
             Ảnh khuôn mặt của {employee.first_name} {employee.last_name}
@@ -633,7 +661,7 @@ const EmployeesPage = () => {
               <Box>
                 <img 
                   src={selectedImage.image} 
-                  alt={`Khuôn mặt của ${employee.first_name}`}
+                  alt={`Khuôn mặt của ${employee.first_name}`} 
                   style={{ width: '100%', maxHeight: '70vh', objectFit: 'contain' }}
                 />
                 <Typography variant="body2" sx={{ mt: 1 }}>
@@ -654,8 +682,6 @@ const EmployeesPage = () => {
                     <strong>Số lần điểm danh thành công:</strong> {selectedImage.successful_matches} lần
                   </Typography>
                 )}
-                
-                {/* Hiển thị danh sách điểm danh gần đây */}
                 {selectedImage.recent_matches && selectedImage.recent_matches.length > 0 && (
                   <Box sx={{ mt: 2 }}>
                     <Typography variant="subtitle2" gutterBottom>
@@ -702,7 +728,6 @@ const EmployeesPage = () => {
                     </Box>
                   </Box>
                 )}
-                
                 <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
                   <Button 
                     variant="contained" 
@@ -724,7 +749,6 @@ const EmployeesPage = () => {
     );
   };
 
-  // Function to handle viewing employee details
   const handleViewEmployee = (employee) => {
     setCurrentEmployee(employee);
     setOpenDialog(true);
@@ -759,6 +783,7 @@ const EmployeesPage = () => {
           <Table>
             <TableHead>
               <TableRow>
+                <TableCell>Tên đăng nhập</TableCell>
                 <TableCell>Mã nhân viên</TableCell>
                 <TableCell>Họ tên</TableCell>
                 <TableCell>Phòng ban</TableCell>
@@ -775,6 +800,7 @@ const EmployeesPage = () => {
                   onClick={() => handleViewEmployee(employee)}
                   sx={{ cursor: 'pointer' }}
                 >
+                  <TableCell>{employee.username}</TableCell>
                   <TableCell>{employee.employee_id}</TableCell>
                   <TableCell>{employee.first_name} {employee.last_name}</TableCell>
                   <TableCell>{employee.department?.name || 'Chưa phân phòng'}</TableCell>
@@ -787,7 +813,7 @@ const EmployeesPage = () => {
                     <Tooltip title="Sửa">
                       <IconButton 
                         onClick={(e) => {
-                          e.stopPropagation(); // Prevent row click
+                          e.stopPropagation();
                           handleEditEmployee(employee);
                         }}
                       >
@@ -797,7 +823,7 @@ const EmployeesPage = () => {
                     <Tooltip title="Đăng ký khuôn mặt">
                       <IconButton 
                         onClick={(e) => {
-                          e.stopPropagation(); // Prevent row click
+                          e.stopPropagation();
                           handleOpenFaceDialog(employee);
                         }}
                       >
@@ -807,7 +833,7 @@ const EmployeesPage = () => {
                     <Tooltip title="Xóa">
                       <IconButton 
                         onClick={(e) => {
-                          e.stopPropagation(); // Prevent row click
+                          e.stopPropagation();
                           handleDeleteEmployee(employee.id);
                         }}
                       >
@@ -829,6 +855,17 @@ const EmployeesPage = () => {
         </DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12}>
+              <TextField
+                name="username"
+                label="Tên đăng nhập"
+                fullWidth
+                value={formData.username}
+                onChange={handleInputChange}
+                required
+                InputProps={{ readOnly: true }}
+              />
+            </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
                 name="employee_id"
@@ -962,4 +999,4 @@ const EmployeesPage = () => {
   );
 };
 
-export default EmployeesPage; 
+export default EmployeesPage;

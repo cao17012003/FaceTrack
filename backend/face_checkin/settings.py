@@ -164,7 +164,7 @@ CORS_ALLOW_HEADERS = [
 # Rest Framework Configuration
 REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',  # Cho phép truy cập không cần xác thực trong development
+        'rest_framework.permissions.IsAuthenticated',  # Yêu cầu xác thực mặc định
     ],
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.TokenAuthentication',

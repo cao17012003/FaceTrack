@@ -36,7 +36,7 @@ const DepartmentsPage = () => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    username: '',  // Trường username
+    username: '', // Trường username
   });
 
   // Fetch dữ liệu phòng ban và lọc theo username
@@ -46,7 +46,12 @@ const DepartmentsPage = () => {
       try {
         const response = await departmentApi.getAll();
         const currentUsername = localStorage.getItem('username'); // Lấy username từ localStorage
-        const filteredDepartments = response.data.filter(department => department.username === currentUsername); // Lọc theo username
+
+        // Nếu username là 'admin' thì hiển thị tất cả phòng ban, ngược lại lọc theo username
+        const filteredDepartments = currentUsername === 'admin'
+          ? response.data
+          : response.data.filter(department => department.username === currentUsername);
+
         setDepartments(filteredDepartments);
       } catch (err) {
         console.error('Error fetching departments:', err);
@@ -73,7 +78,7 @@ const DepartmentsPage = () => {
       setFormData({
         name: '',
         description: '',
-        username: loggedInUsername,  // Đảm bảo username được điền vào khi tạo mới
+        username: loggedInUsername,  // Khi tạo mới, username tự động điền từ localStorage
       });
       setCurrentDepartment(null);
     }
@@ -102,13 +107,21 @@ const DepartmentsPage = () => {
         await departmentApi.update(currentDepartment.id, formData);
       } else {
         // Tạo mới phòng ban
-        await departmentApi.create(formData);
+        const createdDepartmentResponse = await departmentApi.create(formData);
+        // Lưu lại id và name của phòng ban mới tạo vào localStorage
+        if (createdDepartmentResponse && createdDepartmentResponse.data) {
+          const { id, name } = createdDepartmentResponse.data;
+          localStorage.setItem('departmentInfo', JSON.stringify({ id, name }));
+          console.log('Đã lưu department:', { id, name });
+        }
       }
       
       // Làm mới danh sách phòng ban
       const response = await departmentApi.getAll();
       const currentUsername = localStorage.getItem('username');
-      const filteredDepartments = response.data.filter(department => department.username === currentUsername);
+      const filteredDepartments = currentUsername === 'admin'
+        ? response.data
+        : response.data.filter(department => department.username === currentUsername);
       setDepartments(filteredDepartments);
       
       handleCloseDialog();
@@ -130,7 +143,9 @@ const DepartmentsPage = () => {
         // Làm mới danh sách phòng ban
         const response = await departmentApi.getAll();
         const currentUsername = localStorage.getItem('username');
-        const filteredDepartments = response.data.filter(department => department.username === currentUsername);
+        const filteredDepartments = currentUsername === 'admin'
+          ? response.data
+          : response.data.filter(department => department.username === currentUsername);
         setDepartments(filteredDepartments);
       } catch (err) {
         console.error('Error deleting department:', err);

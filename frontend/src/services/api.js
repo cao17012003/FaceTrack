@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { AUTH_TOKEN_KEY } from '../config';
 
 const API_URL = 'http://localhost:8000/api';
 
@@ -18,9 +19,9 @@ api.interceptors.response.use(
   }
 );
 
-// Thêm interceptor cho token (nếu cần)
+// Thêm interceptor cho token
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token'); // Giả sử bạn lưu token
+  const token = localStorage.getItem(AUTH_TOKEN_KEY);
   if (token) {
     config.headers.Authorization = `Token ${token}`;
   }

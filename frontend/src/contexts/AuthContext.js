@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
-import { API_BASE_URL } from '../config';
+import { API_BASE_URL, AUTH_TOKEN_KEY, USER_DATA_KEY } from '../config';
 
 const AuthContext = createContext();
 
@@ -14,13 +14,13 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     // Kiểm tra xem có thông tin đăng nhập trong localStorage không
-    const savedUser = localStorage.getItem('user');
+    const savedUser = localStorage.getItem(USER_DATA_KEY);
     if (savedUser) {
       try {
         setCurrentUser(JSON.parse(savedUser));
       } catch (error) {
         console.error('Lỗi khi đọc dữ liệu đăng nhập:', error);
-        localStorage.removeItem('user');
+        localStorage.removeItem(USER_DATA_KEY);
       }
     }
     setLoading(false);
@@ -51,7 +51,8 @@ export function AuthProvider({ children }) {
         };
         console.log('Đăng nhập thành công:', userData);
         setCurrentUser(userData);
-        localStorage.setItem('user', JSON.stringify(userData));
+        localStorage.setItem(USER_DATA_KEY, JSON.stringify(userData));
+        localStorage.setItem(AUTH_TOKEN_KEY, response.data.token);
         return userData;
       } else {
         console.error('Lỗi đăng nhập (success=false):', response.data.error);
@@ -74,7 +75,8 @@ export function AuthProvider({ children }) {
 
   const logout = () => {
     setCurrentUser(null);
-    localStorage.removeItem('user');
+    localStorage.removeItem(USER_DATA_KEY);
+    localStorage.removeItem(AUTH_TOKEN_KEY);
   };
 
   // Kiểm tra xem người dùng hiện tại có phải là admin không
