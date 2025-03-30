@@ -9,6 +9,7 @@ urlpatterns = [
     path('api/', include('attendance.urls')),
     path('api/', include('authentication.urls')),
     path('api/', include('notifications.urls')),
+    path('api/', include('register.urls')),
     
     # Static và media URLs
     path('media/<path:path>', serve, {'document_root': settings.MEDIA_ROOT}),

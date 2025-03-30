@@ -57,7 +57,13 @@ const ShiftsPage = () => {
       setLoading(true);
       try {
         const response = await shiftApi.getAll();
-        setShifts(response.data);
+        // Lấy username hiện tại từ localStorage
+        const currentUsername = localStorage.getItem('username');
+        // Lọc các shift trùng khớp username
+        const filteredShifts = response.data.filter(
+          (shift) => shift.username === currentUsername
+        );
+        setShifts(filteredShifts);
       } catch (err) {
         console.error('Error fetching shifts:', err);
         setError('Có lỗi xảy ra khi tải dữ liệu ca làm việc. Vui lòng thử lại sau.');
@@ -80,7 +86,7 @@ const ShiftsPage = () => {
         start_time: startTime,
         end_time: endTime,
         description: shift.description || '',
-        username: localStorage.getItem('username'), // Tự động điền username từ localStorage
+        username: shift.username || localStorage.getItem('username'),
       });
       setCurrentShift(shift);
     } else {
@@ -89,7 +95,7 @@ const ShiftsPage = () => {
         start_time: null,
         end_time: null,
         description: '',
-        username: localStorage.getItem('username'), // Tự động điền username từ localStorage
+        username: localStorage.getItem('username'),
       });
       setCurrentShift(null);
     }
@@ -122,10 +128,10 @@ const ShiftsPage = () => {
       const dataToSubmit = {
         ...formData,
         start_time: formData.start_time 
-          ? `${formData.start_time.getHours().toString().padStart(2, '0')}:${formData.start_time.getMinutes().toString().padStart(2, '0')}` 
+          ? `${formData.start_time.getHours().toString().padStart(2, '0')}:${formData.start_time.getMinutes().toString().padStart(2, '0')}`
           : null,
         end_time: formData.end_time 
-          ? `${formData.end_time.getHours().toString().padStart(2, '0')}:${formData.end_time.getMinutes().toString().padStart(2, '0')}` 
+          ? `${formData.end_time.getHours().toString().padStart(2, '0')}:${formData.end_time.getMinutes().toString().padStart(2, '0')}`
           : null,
       };
       
@@ -145,7 +151,11 @@ const ShiftsPage = () => {
       
       // Refresh shift list
       const response = await shiftApi.getAll();
-      setShifts(response.data);
+      const currentUsername = localStorage.getItem('username');
+      const filteredShifts = response.data.filter(
+        (shift) => shift.username === currentUsername
+      );
+      setShifts(filteredShifts);
       
       handleCloseDialog();
     } catch (err) {
@@ -164,7 +174,11 @@ const ShiftsPage = () => {
         
         // Refresh shift list
         const response = await shiftApi.getAll();
-        setShifts(response.data);
+        const currentUsername = localStorage.getItem('username');
+        const filteredShifts = response.data.filter(
+          (shift) => shift.username === currentUsername
+        );
+        setShifts(filteredShifts);
       } catch (err) {
         console.error('Error deleting shift:', err);
         setError('Có lỗi xảy ra khi xóa ca làm việc.');

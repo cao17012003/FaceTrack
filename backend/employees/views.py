@@ -14,6 +14,13 @@ import logging
 import os
 import face_recognition
 
+from django.contrib.auth.models import User
+from rest_framework.views import APIView
+from rest_framework.response import Response
+
+
+from .models import UserProfile
+
 from .models import Employee, Department, Shift, FaceData, UserProfile
 from .serializers import (
     EmployeeSerializer, EmployeeDetailSerializer,
@@ -520,4 +527,46 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             return Response(
                 {'error': f'Lỗi hệ thống: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class RegistrationAPIView(APIView):
+    permission_classes = [AllowAny]  # Cho phép bất kỳ ai truy cập
+
+    def post(self, request):
+        # Lấy dữ liệu từ request
+        username = request.data.get("username")
+        email = request.data.get("email")
+        password = request.data.get("password")
+        confirm_password = request.data.get("confirm_password")
+
+        # Kiểm tra thông tin bắt buộc
+        if not username or not email or not password or not confirm_password:
+            return Response(
+                {"error": "Vui lòng cung cấp đầy đủ thông tin."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if password != confirm_password:
+            return Response(
+                {"error": "Mật khẩu và xác nhận mật khẩu không khớp."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if User.objects.filter(username=username).exists():
+            return Response(
+                {"error": "Tên đăng nhập đã tồn tại."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            # Tạo user trong hệ thống Django
+            user = User.objects.create_user(username=username, email=email, password=password)
+            # Tạo UserProfile với vai trò user
+            UserProfile.objects.create(username=username, is_user=True)
+            return Response(
+                {"success": True, "message": "Đăng ký tài khoản thành công."},
+                status=status.HTTP_201_CREATED
+            )
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
             )

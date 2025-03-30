@@ -61,7 +61,7 @@ const EmployeesPage = () => {
     phone: '',
     department: '', // lưu id của phòng ban
     shift: '',      // lưu id của ca làm việc
-    is_active: false,
+    is_active: true,
     profile_image: null,
   });
 
@@ -123,6 +123,7 @@ const EmployeesPage = () => {
       phone: employee.phone || '',
       department: employee.department?.id || '', // Lấy id của phòng ban
       shift: employee.shift?.id || '',           // Lấy id của ca làm việc
+      is_active: employee.is_active || true      // Thêm trường is_active
     });
     setCurrentEmployee(employee);
     setOpenDialog(true);
@@ -140,6 +141,7 @@ const EmployeesPage = () => {
         phone: employee.phone || '',
         department: employee.department?.id || '',
         shift: employee.shift?.id || '',
+        is_active: employee.is_active
       });
       setCurrentEmployee(employee);
     } else {
@@ -152,6 +154,7 @@ const EmployeesPage = () => {
         phone: '',
         department: '',
         shift: '',
+        is_active: true
       });
       setCurrentEmployee(null);
     }
@@ -183,12 +186,12 @@ const EmployeesPage = () => {
     setLoading(true);
     try {
       // Đảm bảo trường department và shift được gửi dưới dạng id (số)
-        const dataToSubmit = {
-          ...formData,
-          department: formData.department ? Number(formData.department) : null,
-          shift: formData.shift ? Number(formData.shift) : null,
-        };
-
+      const dataToSubmit = {
+        ...formData,
+        department: formData.department ? Number(formData.department) : null,
+        shift: formData.shift ? Number(formData.shift) : null,
+        is_active: true
+      };
 
       if (currentEmployee) {
         await employeeApi.update(currentEmployee.id, dataToSubmit);

@@ -28,6 +28,12 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// API cho xác thực
+export const authApi = {
+  login: (data) => api.post('/login/', data),
+  register: (data) => api.post('/register/', data),
+};
+
 // API cho nhân viên
 export const employeeApi = {
   getAll: () => api.get('/employees/'),
@@ -122,6 +128,7 @@ export const userApi = {
 };
 
 export default {
+  auth: authApi,
   employee: employeeApi,
   department: departmentApi,
   shift: shiftApi,

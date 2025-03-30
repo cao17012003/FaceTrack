@@ -8,10 +8,67 @@ from django.db.models import Count
 from django.contrib.auth import authenticate
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.authtoken.models import Token
+from django.contrib.auth.models import User
 
 from employees.models import Employee, Department, UserProfile
 from attendance.models import Attendance
 from employees.serializers import UserProfileSerializer, EmployeeSerializer
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def register(request):
+    """API endpoint xử lý đăng ký tài khoản mới"""
+    username = request.data.get('username')
+    password = request.data.get('password')
+    email = request.data.get('email')
+    first_name = request.data.get('first_name', '')
+    last_name = request.data.get('last_name', '')
+    role = request.data.get('role', 'user')  # Mặc định là user
+
+    if not username or not password:
+        return Response({
+            'success': False,
+            'error': 'Vui lòng nhập đầy đủ thông tin đăng ký'
+        }, status=400)
+
+    # Kiểm tra username đã tồn tại chưa
+    if User.objects.filter(username=username).exists():
+        return Response({
+            'success': False,
+            'error': 'Tên đăng nhập đã tồn tại'
+        }, status=400)
+
+    # Tạo user mới
+    user = User.objects.create_user(
+        username=username,
+        password=password,
+        email=email,
+        first_name=first_name,
+        last_name=last_name,
+        is_staff=(role == 'admin')
+    )
+
+    # Tạo UserProfile
+    UserProfile.objects.create(
+        username=username,
+        is_admin=(role == 'admin'),
+        is_user=(role == 'user')
+    )
+
+    # Tạo token cho user mới
+    token, created = Token.objects.get_or_create(user=user)
+
+    return Response({
+        'success': True,
+        'token': token.key,
+        'user': {
+            'username': user.username,
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'is_staff': user.is_staff
+        }
+    })
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -27,6 +84,32 @@ def login(request):
             'error': 'Vui lòng nhập đầy đủ thông tin đăng nhập'
         }, status=400)
 
+    # Kiểm tra xem user đã tồn tại chưa
+    try:
+        user = User.objects.get(username=username)
+    except User.DoesNotExist:
+        # Nếu user chưa tồn tại, tạo user mới
+        user = User.objects.create_user(
+            username=username,
+            password=password,
+            is_staff=(role == 'admin')
+        )
+        # Tạo UserProfile cho user mới
+        UserProfile.objects.create(
+            username=username,
+            is_admin=(role == 'admin'),
+            is_user=(role == 'user')
+        )
+        # Nếu là nhân viên, tạo Employee record
+        if role == 'user':
+            Employee.objects.create(
+                username=username,
+                first_name=username,  # Có thể cập nhật sau
+                last_name='',  # Có thể cập nhật sau
+                email=f'{username}@example.com'  # Có thể cập nhật sau
+            )
+
+    # Xác thực user
     user = authenticate(username=username, password=password)
     
     if not user:

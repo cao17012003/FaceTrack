@@ -151,26 +151,8 @@ const LoginPage = () => {
                   },
                 }}
               >
-                <FormControlLabel
-                  value="user"
-                  control={<Radio />}
-                  label="Nhân viên"
-                  sx={{
-                    '&.Mui-checked': {
-                      color: theme.palette.primary.main,
-                    },
-                  }}
-                />
-                <FormControlLabel
-                  value="admin"
-                  control={<Radio />}
-                  label="Quản trị viên"
-                  sx={{
-                    '&.Mui-checked': {
-                      color: theme.palette.primary.main,
-                    },
-                  }}
-                />
+                <FormControlLabel value="user" control={<Radio />} label="Nhân viên" />
+                <FormControlLabel value="admin" control={<Radio />} label="Quản trị viên" />
               </RadioGroup>
             </FormControl>
 
@@ -191,15 +173,12 @@ const LoginPage = () => {
               }}
               sx={{
                 '& .MuiOutlinedInput-root': {
-                  '&:hover fieldset': {
-                    borderColor: theme.palette.primary.main,
-                  },
+                  '&:hover fieldset': { borderColor: theme.palette.primary.main },
                 },
-                '& .MuiInputLabel-root': {
-                  color: theme.palette.primary.main,
-                },
+                '& .MuiInputLabel-root': { color: theme.palette.primary.main },
               }}
             />
+
             <TextField
               margin="normal"
               required
@@ -217,13 +196,9 @@ const LoginPage = () => {
               }}
               sx={{
                 '& .MuiOutlinedInput-root': {
-                  '&:hover fieldset': {
-                    borderColor: theme.palette.primary.main,
-                  },
+                  '&:hover fieldset': { borderColor: theme.palette.primary.main },
                 },
-                '& .MuiInputLabel-root': {
-                  color: theme.palette.primary.main,
-                },
+                '& .MuiInputLabel-root': { color: theme.palette.primary.main },
               }}
             />
 
@@ -247,6 +222,22 @@ const LoginPage = () => {
               disabled={loading}
             >
               {loading ? <CircularProgress size={24} color="inherit" /> : 'Đăng nhập'}
+            </Button>
+
+            {/* Nút đăng ký tài khoản */}
+            <Button
+              fullWidth
+              variant="outlined"
+              onClick={() => navigate('/register')}
+              sx={{
+                textTransform: 'none',
+                fontSize: '1.1rem',
+                fontWeight: 'bold',
+                mb: 2,
+              }}
+              disabled={loading}
+            >
+              Đăng ký tài khoản
             </Button>
 
             <Paper

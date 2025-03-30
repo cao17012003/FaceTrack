@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import CssBaseline from '@mui/material/CssBaseline';
 import { SnackbarProvider } from 'notistack';
 
+import RegisterPage from './pages/RegisterPage';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import CheckInPage from './pages/CheckInPage';
@@ -18,26 +19,23 @@ import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 
-// Component bảo vệ route cho người dùng đã đăng nhập
+// Route bảo vệ cho người dùng đã đăng nhập
 const ProtectedRoute = ({ children }) => {
-  const isAuthenticated = localStorage.getItem('user') !== null;
-  
+  // Kiểm tra nếu localStorage có 'username' (có thể điều chỉnh nếu AuthContext lưu dưới key khác)
+  const isAuthenticated = localStorage.getItem('username') !== null;
   if (!isAuthenticated) {
     return <Navigate to="/login" />;
   }
-  
   return children;
 };
 
-// Component bảo vệ route cho admin
+// Route bảo vệ cho admin
 const AdminRoute = ({ children }) => {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isAdmin = user.role === 'admin';
-  
   if (!isAdmin) {
     return <Navigate to="/" />;
   }
-  
   return children;
 };
 
@@ -45,7 +43,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Giả lập thời gian tải
+    // Giả lập thời gian tải (1 giây)
     const timer = setTimeout(() => {
       setIsLoading(false);
     }, 1000);
@@ -76,6 +74,7 @@ function App() {
             <Router>
               <Routes>
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/register" element={<RegisterPage />} />
                 <Route 
                   path="/admin" 
                   element={
