@@ -36,26 +36,21 @@ const DepartmentsPage = () => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    username: '', // Trường username
   });
 
-  // Fetch dữ liệu phòng ban và lọc theo username
+  // Fetch dữ liệu phòng ban và lọc theo userId
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const response = await departmentApi.getAll();
-        const currentUsername = localStorage.getItem('username'); // Lấy username từ localStorage
-
-        // Nếu username là 'admin' thì hiển thị tất cả phòng ban, ngược lại lọc theo username
-        const filteredDepartments = currentUsername === 'admin'
-          ? response.data
-          : response.data.filter(department => department.username === currentUsername);
-
-        setDepartments(filteredDepartments);
+        const userId = localStorage.getItem('userId');
+        console.log('Fetching departments for user:', userId);
+        const response = await departmentApi.getAll({ username: userId });
+        console.log('Departments response:', response.data);
+        setDepartments(response.data);
       } catch (err) {
         console.error('Error fetching departments:', err);
-        setError('Có lỗi xảy ra khi tải dữ liệu phòng ban. Vui lòng thử lại sau.');
+        setError('Có lỗi xảy ra khi tải danh sách phòng ban.');
       } finally {
         setLoading(false);
       }
@@ -64,21 +59,17 @@ const DepartmentsPage = () => {
     fetchData();
   }, []);
 
-  // Mở form thêm hoặc chỉnh sửa phòng ban
   const handleOpenDialog = (department = null) => {
-    const loggedInUsername = localStorage.getItem('username');  // Lấy tên đăng nhập từ localStorage
     if (department) {
       setFormData({
         name: department.name,
         description: department.description || '',
-        username: department.username || loggedInUsername,  // Đảm bảo username được điền vào
       });
       setCurrentDepartment(department);
     } else {
       setFormData({
         name: '',
         description: '',
-        username: loggedInUsername,  // Khi tạo mới, username tự động điền từ localStorage
       });
       setCurrentDepartment(null);
     }
@@ -87,9 +78,13 @@ const DepartmentsPage = () => {
 
   const handleCloseDialog = () => {
     setOpenDialog(false);
+    setFormData({
+      name: '',
+      description: '',
+    });
+    setCurrentDepartment(null);
   };
 
-  // Xử lý thay đổi dữ liệu từ form
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData({
@@ -99,31 +94,43 @@ const DepartmentsPage = () => {
   };
 
   // Xử lý lưu dữ liệu phòng ban
-  const handleSubmit = async () => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     setLoading(true);
     try {
+      const userId = localStorage.getItem('userId');
+      console.log('Retrieved userId from localStorage:', userId);
+      if (!userId) {
+        setError('Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.');
+        return;
+      }
+
+      const data = {
+        name: formData.name,
+        description: formData.description,
+        username: parseInt(userId)
+      };
+      console.log('Sending data to API:', data);
+
       if (currentDepartment) {
-        // Cập nhật phòng ban
-        await departmentApi.update(currentDepartment.id, formData);
+        await departmentApi.update(currentDepartment.id, data);
       } else {
-        // Tạo mới phòng ban
-        const createdDepartmentResponse = await departmentApi.create(formData);
-        // Lưu lại id và name của phòng ban mới tạo vào localStorage
-        if (createdDepartmentResponse && createdDepartmentResponse.data) {
-          const { id, name } = createdDepartmentResponse.data;
+        const response = await departmentApi.create(data);
+        console.log('API response:', response);
+        if (response && response.data) {
+          const { id, name } = response.data;
           localStorage.setItem('departmentInfo', JSON.stringify({ id, name }));
-          console.log('Đã lưu department:', { id, name });
         }
       }
       
-      // Làm mới danh sách phòng ban
+      // Làm mới danh sách và lọc theo userId
       const response = await departmentApi.getAll();
-      const currentUsername = localStorage.getItem('username');
-      const filteredDepartments = currentUsername === 'admin'
-        ? response.data
-        : response.data.filter(department => department.username === currentUsername);
+      console.log('All departments:', response.data);
+      const filteredDepartments = response.data.filter(
+        department => department.username === parseInt(userId)
+      );
+      console.log('Filtered departments:', filteredDepartments);
       setDepartments(filteredDepartments);
-      
       handleCloseDialog();
     } catch (err) {
       console.error('Error saving department:', err);
@@ -139,13 +146,16 @@ const DepartmentsPage = () => {
       setLoading(true);
       try {
         await departmentApi.delete(id);
-        
-        // Làm mới danh sách phòng ban
+        // Làm mới danh sách và lọc theo userId
         const response = await departmentApi.getAll();
-        const currentUsername = localStorage.getItem('username');
-        const filteredDepartments = currentUsername === 'admin'
-          ? response.data
-          : response.data.filter(department => department.username === currentUsername);
+        const userId = localStorage.getItem('userId');
+        if (!userId) {
+          setError('Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.');
+          return;
+        }
+        const filteredDepartments = response.data.filter(
+          department => department.username === parseInt(userId)
+        );
         setDepartments(filteredDepartments);
       } catch (err) {
         console.error('Error deleting department:', err);
@@ -187,7 +197,6 @@ const DepartmentsPage = () => {
               <TableRow>
                 <TableCell>Tên phòng ban</TableCell>
                 <TableCell>Mô tả</TableCell>
-                <TableCell>Tên đăng nhập</TableCell>
                 <TableCell>Thao tác</TableCell>
               </TableRow>
             </TableHead>
@@ -197,7 +206,6 @@ const DepartmentsPage = () => {
                   <TableRow key={department.id}>
                     <TableCell>{department.name}</TableCell>
                     <TableCell>{department.description}</TableCell>
-                    <TableCell>{department.username}</TableCell>
                     <TableCell>
                       <IconButton
                         color="primary"
@@ -216,7 +224,7 @@ const DepartmentsPage = () => {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={4} align="center">
+                  <TableCell colSpan={3} align="center">
                     Không có dữ liệu phòng ban
                   </TableCell>
                 </TableRow>
@@ -226,8 +234,7 @@ const DepartmentsPage = () => {
         </TableContainer>
       )}
 
-      {/* Department Form Dialog */}
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
+      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
         <DialogTitle>
           {currentDepartment ? 'Chỉnh sửa phòng ban' : 'Thêm phòng ban mới'}
         </DialogTitle>
@@ -248,35 +255,17 @@ const DepartmentsPage = () => {
                 name="description"
                 label="Mô tả"
                 fullWidth
-                value={formData.description}
-                onChange={handleInputChange}
                 multiline
                 rows={4}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                name="username"
-                label="Tên đăng nhập"
-                fullWidth
-                value={formData.username}  // Lấy giá trị từ formData
+                value={formData.description}
                 onChange={handleInputChange}
-                required
-                InputProps={{
-                  readOnly: true,  // Không cho phép chỉnh sửa username
-                }}
               />
             </Grid>
           </Grid>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseDialog}>Hủy</Button>
-          <Button
-            onClick={handleSubmit}
-            variant="contained"
-            color="primary"
-            disabled={loading}
-          >
+          <Button onClick={handleSubmit} variant="contained" disabled={loading}>
             {loading ? <CircularProgress size={24} /> : 'Lưu'}
           </Button>
         </DialogActions>

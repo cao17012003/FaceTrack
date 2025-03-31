@@ -65,7 +65,7 @@ export const employeeApi = {
 
 // API cho phòng ban
 export const departmentApi = {
-  getAll: () => api.get('/departments/'),
+  getAll: (params) => api.get('/departments/', { params }),
   getById: (id) => api.get(`/departments/${id}/`),
   create: (data) => api.post('/departments/', data),
   update: (id, data) => api.put(`/departments/${id}/`, data),
@@ -74,7 +74,7 @@ export const departmentApi = {
 
 // API cho ca làm việc
 export const shiftApi = {
-  getAll: () => api.get('/shifts/'),
+  getAll: (params) => api.get('/shifts/', { params }),
   getById: (id) => api.get(`/shifts/${id}/`),
   create: (data) => api.post('/shifts/', data),
   update: (id, data) => api.put(`/shifts/${id}/`, data),

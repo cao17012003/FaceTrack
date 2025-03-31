@@ -1,7 +1,9 @@
 from rest_framework import serializers
-from .models import Employee, Department, Shift, FaceData, UserProfile
+from .models import Employee, Department, Shift, FaceData, UserProfile, User
 
 class DepartmentSerializer(serializers.ModelSerializer):
+    username = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), required=False)
+    
     class Meta:
         model = Department
         fields = '__all__'
@@ -18,21 +20,20 @@ class FaceDataSerializer(serializers.ModelSerializer):
         read_only_fields = ['face_encoding']
 
 class EmployeeSerializer(serializers.ModelSerializer):
-    department_name = serializers.ReadOnlyField(source='department.name')
-    shift_name = serializers.ReadOnlyField(source='shift.name')
-    
+    department_name = serializers.ReadOnlyField(source='department.name')  # Lấy tên phòng ban
+    shift_name = serializers.ReadOnlyField(source='shift.name')  # Lấy tên ca làm việc
+
     class Meta:
         model = Employee
         fields = [
-            'id',
-            'username',         # Thêm trường username vào serializer
-            'employee_id',
+            'employee_id',         # Sử dụng `employee_id` làm khóa chính
+            'username',            # Trường liên kết với `User`
             'first_name',
             'last_name', 
-            'department',
-            'department_name',
-            'shift',
-            'shift_name',
+            'department',          # Chứa ID của phòng ban
+            'department_name',     # Tên phòng ban
+            'shift',               # Chứa ID của ca làm việc
+            'shift_name',          # Tên ca làm việc
             'email',
             'phone',
             'is_active',

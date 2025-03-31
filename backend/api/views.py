@@ -38,37 +38,34 @@ def register(request):
             'error': 'Tên đăng nhập đã tồn tại'
         }, status=400)
 
-    # Tạo user mới
-    user = User.objects.create_user(
-        username=username,
-        password=password,
-        email=email,
-        first_name=first_name,
-        last_name=last_name,
-        is_staff=(role == 'admin')
-    )
+    try:
+        # Tạo user mới
+        user = User.objects.create_user(
+            username=username,
+            password=password,
+            email=email,
+            first_name=first_name,
+            last_name=last_name,
+            is_staff=(role == 'admin')
+        )
 
-    # Tạo UserProfile
-    UserProfile.objects.create(
-        username=username,
-        is_admin=(role == 'admin'),
-        is_user=(role == 'user')
-    )
+        # Tạo UserProfile
+        UserProfile.objects.create(
+            user=user,  # Sử dụng user thay vì username
+            is_admin=(role == 'admin'),
+            is_user=(role == 'user')
+        )
 
-    # Tạo token cho user mới
-    token, created = Token.objects.get_or_create(user=user)
+        return Response({
+            'success': True,
+            'message': 'Đăng ký tài khoản thành công'
+        }, status=201)
 
-    return Response({
-        'success': True,
-        'token': token.key,
-        'user': {
-            'username': user.username,
-            'email': user.email,
-            'first_name': user.first_name,
-            'last_name': user.last_name,
-            'is_staff': user.is_staff
-        }
-    })
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': str(e)
+        }, status=400)
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -84,31 +81,6 @@ def login(request):
             'error': 'Vui lòng nhập đầy đủ thông tin đăng nhập'
         }, status=400)
 
-    # Kiểm tra xem user đã tồn tại chưa
-    try:
-        user = User.objects.get(username=username)
-    except User.DoesNotExist:
-        # Nếu user chưa tồn tại, tạo user mới
-        user = User.objects.create_user(
-            username=username,
-            password=password,
-            is_staff=(role == 'admin')
-        )
-        # Tạo UserProfile cho user mới
-        UserProfile.objects.create(
-            username=username,
-            is_admin=(role == 'admin'),
-            is_user=(role == 'user')
-        )
-        # Nếu là nhân viên, tạo Employee record
-        if role == 'user':
-            Employee.objects.create(
-                username=username,
-                first_name=username,  # Có thể cập nhật sau
-                last_name='',  # Có thể cập nhật sau
-                email=f'{username}@example.com'  # Có thể cập nhật sau
-            )
-
     # Xác thực user
     user = authenticate(username=username, password=password)
     
@@ -119,21 +91,14 @@ def login(request):
         }, status=401)
 
     try:
-        user_profile = UserProfile.objects.get(username=username)
+        user_profile = UserProfile.objects.get(user=user)
     except UserProfile.DoesNotExist:
-        # Tự động tạo UserProfile cho admin nếu chưa có
-        if user.is_staff:
-            user_profile = UserProfile.objects.create(
-                username=username,
-                is_admin=True,
-                is_user=False
-            )
-        else:
-            user_profile = UserProfile.objects.create(
-                username=username,
-                is_admin=False,
-                is_user=True
-            )
+        # Tự động tạo UserProfile nếu chưa có
+        user_profile = UserProfile.objects.create(
+            user=user,
+            is_admin=user.is_staff,
+            is_user=not user.is_staff
+        )
 
     # Kiểm tra quyền truy cập
     if role == 'admin' and not user_profile.is_admin:
@@ -152,15 +117,17 @@ def login(request):
 
     # Lấy thông tin employee nếu có
     try:
-        employee = Employee.objects.get(username=username)
-        employee_data = EmployeeSerializer(employee).data
-    except Employee.DoesNotExist:
+        employee = Employee.objects.filter(username=user).first()  # Sử dụng filter().first() thay vì get()
+        employee_data = EmployeeSerializer(employee).data if employee else None
+    except Exception as e:
+        print(f"Lỗi khi lấy thông tin employee: {str(e)}")
         employee_data = None
 
     return Response({
         'success': True,
         'token': token.key,
         'user': {
+            'id': user.id,
             'username': user.username,
             'is_staff': user.is_staff,
             'is_superuser': user.is_superuser

@@ -48,7 +48,6 @@ const ShiftsPage = () => {
     start_time: null,
     end_time: null,
     description: '',
-    username: '', // Thêm trường username
   });
 
   // Fetch data
@@ -56,14 +55,11 @@ const ShiftsPage = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const response = await shiftApi.getAll();
-        // Lấy username hiện tại từ localStorage
-        const currentUsername = localStorage.getItem('username');
-        // Lọc các shift trùng khớp username
-        const filteredShifts = response.data.filter(
-          (shift) => shift.username === currentUsername
-        );
-        setShifts(filteredShifts);
+        const userId = localStorage.getItem('userId');
+        console.log('Fetching shifts for user:', userId);
+        const response = await shiftApi.getAll({ username: userId });
+        console.log('Shifts response:', response.data);
+        setShifts(response.data);
       } catch (err) {
         console.error('Error fetching shifts:', err);
         setError('Có lỗi xảy ra khi tải dữ liệu ca làm việc. Vui lòng thử lại sau.');
@@ -86,7 +82,6 @@ const ShiftsPage = () => {
         start_time: startTime,
         end_time: endTime,
         description: shift.description || '',
-        username: shift.username || localStorage.getItem('username'),
       });
       setCurrentShift(shift);
     } else {
@@ -95,7 +90,6 @@ const ShiftsPage = () => {
         start_time: null,
         end_time: null,
         description: '',
-        username: localStorage.getItem('username'),
       });
       setCurrentShift(null);
     }
@@ -124,6 +118,13 @@ const ShiftsPage = () => {
   const handleSubmit = async () => {
     setLoading(true);
     try {
+      const userId = localStorage.getItem('userId');
+      console.log('Retrieved userId from localStorage:', userId);
+      if (!userId) {
+        setError('Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.');
+        return;
+      }
+
       // Format time values for API
       const dataToSubmit = {
         ...formData,
@@ -133,6 +134,7 @@ const ShiftsPage = () => {
         end_time: formData.end_time 
           ? `${formData.end_time.getHours().toString().padStart(2, '0')}:${formData.end_time.getMinutes().toString().padStart(2, '0')}`
           : null,
+        username: parseInt(userId)
       };
       
       if (currentShift) {
@@ -150,13 +152,8 @@ const ShiftsPage = () => {
       }
       
       // Refresh shift list
-      const response = await shiftApi.getAll();
-      const currentUsername = localStorage.getItem('username');
-      const filteredShifts = response.data.filter(
-        (shift) => shift.username === currentUsername
-      );
-      setShifts(filteredShifts);
-      
+      const response = await shiftApi.getAll({ username: userId });
+      setShifts(response.data);
       handleCloseDialog();
     } catch (err) {
       console.error('Error saving shift:', err);
@@ -173,12 +170,13 @@ const ShiftsPage = () => {
         await shiftApi.delete(id);
         
         // Refresh shift list
-        const response = await shiftApi.getAll();
-        const currentUsername = localStorage.getItem('username');
-        const filteredShifts = response.data.filter(
-          (shift) => shift.username === currentUsername
-        );
-        setShifts(filteredShifts);
+        const userId = localStorage.getItem('userId');
+        if (!userId) {
+          setError('Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.');
+          return;
+        }
+        const response = await shiftApi.getAll({ username: userId });
+        setShifts(response.data);
       } catch (err) {
         console.error('Error deleting shift:', err);
         setError('Có lỗi xảy ra khi xóa ca làm việc.');
@@ -260,7 +258,6 @@ const ShiftsPage = () => {
         </TableContainer>
       )}
 
-      {/* Shift Form Dialog */}
       <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
         <DialogTitle>
           {currentShift ? 'Chỉnh sửa ca làm việc' : 'Thêm ca làm việc mới'}
@@ -303,15 +300,6 @@ const ShiftsPage = () => {
                   onChange={handleInputChange}
                   multiline
                   rows={4}
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  name="username"
-                  label="Tên đăng nhập"
-                  fullWidth
-                  value={formData.username}
-                  disabled
                 />
               </Grid>
             </Grid>

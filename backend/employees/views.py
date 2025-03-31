@@ -37,19 +37,18 @@ class UserProfileViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         try:
-            user_profile = UserProfile.objects.get(username=user.username)
-            
+            user_profile = UserProfile.objects.get(user__username=user.username) 
             # Admin có thể xem tất cả user
             if user_profile.is_admin:
                 return UserProfile.objects.all()
             
             # User thường chỉ có thể xem thông tin của bản thân
-            return UserProfile.objects.filter(username=user.username)
+            return UserProfile.objects.filter(user__username=user.username)
         except UserProfile.DoesNotExist:
             return UserProfile.objects.none()
+
     
     def create(self, request, *args, **kwargs):
-        # Chỉ admin mới có thể tạo user mới
         try:
             user_profile = UserProfile.objects.get(username=request.user.username)
             if not user_profile.is_admin:
@@ -101,6 +100,59 @@ class DepartmentViewSet(viewsets.ModelViewSet):
     serializer_class = DepartmentSerializer
     permission_classes = [AllowAny]  # Cho phép truy cập không cần xác thực
 
+    def get_queryset(self):
+        """Lấy danh sách phòng ban dựa trên user ID"""
+        user_id = self.request.query_params.get('username')
+        if user_id:
+            try:
+                user = User.objects.get(id=user_id)
+                return Department.objects.filter(username=user)
+            except User.DoesNotExist:
+                return Department.objects.none()
+        return Department.objects.all()
+
+    def create(self, request, *args, **kwargs):
+        """Tạo phòng ban mới"""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        # Lấy user từ request
+        user_id = request.data.get('username')
+        if user_id:
+            try:
+                user = User.objects.get(id=user_id)
+                serializer.save(username=user)
+            except User.DoesNotExist:
+                return Response({
+                    'error': 'Không tìm thấy người dùng với ID đã cho'
+                }, status=status.HTTP_404_NOT_FOUND)
+        else:
+            serializer.save()
+            
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def update(self, request, *args, **kwargs):
+        """Cập nhật thông tin phòng ban"""
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        
+        # Lấy user từ request
+        user_id = request.data.get('username')
+        if user_id:
+            try:
+                user = User.objects.get(id=user_id)
+                serializer.save(username=user)
+            except User.DoesNotExist:
+                return Response({
+                    'error': 'Không tìm thấy người dùng với ID đã cho'
+                }, status=status.HTTP_404_NOT_FOUND)
+        else:
+            serializer.save()
+            
+        return Response(serializer.data)
+
 class ShiftViewSet(viewsets.ModelViewSet):
     queryset = Shift.objects.all()
     serializer_class = ShiftSerializer
@@ -126,23 +178,20 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         """Lấy danh sách nhân viên dựa trên quyền của user"""
-        user = self.request.user
-        if not user:
+        user_id = self.request.user.id  # Lấy userId thay vì username
+        if not user_id:
             return Employee.objects.none()
-            
+        
         try:
-            user_profile = UserProfile.objects.get(username=user.username)
+            user_profile = UserProfile.objects.get(user_id=user_id)  # Truy vấn theo user_id
             if user_profile.is_admin:
-                return Employee.objects.all()
+                return Employee.objects.all()  # Admin có thể xem tất cả nhân viên
             else:
-                try:
-                    employee = Employee.objects.get(username=user.username)
-                    return Employee.objects.filter(id=employee.id)
-                except Employee.DoesNotExist:
-                    return Employee.objects.none()
+                # Lọc nhân viên theo user_id
+                return Employee.objects.filter(username__id=user_id)  # Sử dụng user_id trong ForeignKey
         except UserProfile.DoesNotExist:
             return Employee.objects.none()
-    
+
     def create(self, request, *args, **kwargs):
         """Tạo nhân viên mới
            Đã loại bỏ kiểm tra admin để cho phép tất cả người dùng đã xác thực tạo nhân viên
@@ -154,11 +203,9 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
     
     def update(self, request, *args, **kwargs):
-        """Cập nhật thông tin nhân viên.
-           (Nếu muốn bảo vệ thao tác này, bạn có thể giữ kiểm tra admin ở đây.)
-        """
+        """Cập nhật thông tin nhân viên"""
         try:
-            user_profile = UserProfile.objects.get(username=request.user.username)
+            user_profile = UserProfile.objects.get(user_id=request.user.id)  # Truy vấn theo user_id
             if not user_profile.is_admin:
                 return Response({
                     'error': 'Bạn không có quyền cập nhật thông tin nhân viên'
@@ -176,17 +223,17 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_404_NOT_FOUND)
     
     def destroy(self, request, *args, **kwargs):
-        """Xóa nhân viên.
-           (Nếu muốn bảo vệ thao tác này, bạn có thể giữ kiểm tra admin ở đây.)
-        """
+        """Xóa nhân viên"""
         try:
-            user_profile = UserProfile.objects.get(username=request.user.username)
-            if not user_profile.is_admin:
+            user_profile = UserProfile.objects.get(user_id=request.user.id)  # Truy vấn theo user_id
+            instance = self.get_object()
+            
+            # Kiểm tra quyền xóa
+            if not user_profile.is_admin and instance.username_id != request.user.id:
                 return Response({
-                    'error': 'Bạn không có quyền xóa nhân viên'
+                    'error': 'Bạn không có quyền xóa nhân viên này'
                 }, status=status.HTTP_403_FORBIDDEN)
                 
-            instance = self.get_object()
             self.perform_destroy(instance)
             return Response(status=status.HTTP_204_NO_CONTENT)
         except UserProfile.DoesNotExist:
@@ -198,6 +245,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         if self.action == 'retrieve':
             return EmployeeDetailSerializer
         return EmployeeSerializer
+
     
     @action(detail=True, methods=['get'])
     def face_data(self, request, pk=None):
@@ -538,35 +586,40 @@ class RegistrationAPIView(APIView):
         username = request.data.get("username")
         email = request.data.get("email")
         password = request.data.get("password")
-        confirm_password = request.data.get("confirm_password")
+        role = request.data.get("role", "user")  # Mặc định là user nếu không có
 
         # Kiểm tra thông tin bắt buộc
-        if not username or not email or not password or not confirm_password:
+        if not username or not email or not password:
             return Response(
-                {"error": "Vui lòng cung cấp đầy đủ thông tin."},
+                {"success": False, "error": "Vui lòng cung cấp đầy đủ thông tin."},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        if password != confirm_password:
-            return Response(
-                {"error": "Mật khẩu và xác nhận mật khẩu không khớp."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+
         if User.objects.filter(username=username).exists():
             return Response(
-                {"error": "Tên đăng nhập đã tồn tại."},
+                {"success": False, "error": "Tên đăng nhập đã tồn tại."},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
         try:
             # Tạo user trong hệ thống Django
             user = User.objects.create_user(username=username, email=email, password=password)
-            # Tạo UserProfile với vai trò user
-            UserProfile.objects.create(username=username, is_user=True)
+            
+            # Tạo UserProfile và liên kết với user
+            if role == "admin":
+                UserProfile.objects.create(user=user, is_admin=True)
+            else:
+                UserProfile.objects.create(user=user, is_user=True)
+
             return Response(
-                {"success": True, "message": "Đăng ký tài khoản thành công."},
+                {
+                    "success": True, 
+                    "message": "Đăng ký tài khoản thành công.",
+                },
                 status=status.HTTP_201_CREATED
             )
         except Exception as e:
             return Response(
-                {"error": str(e)},
+                {"success": False, "error": str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )

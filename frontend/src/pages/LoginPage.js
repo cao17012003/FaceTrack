@@ -33,34 +33,46 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const theme = useTheme();
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
+const handleLogin = async (e) => {
+  e.preventDefault();
 
-    if (!username || !password) {
-      setError('Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu');
-      return;
+  if (!username || !password) {
+    setError('Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu');
+    return;
+  }
+
+  try {
+    setError('');
+    setLoading(true);
+    const user = await login(username, password, role);
+    console.log('Login response:', user);
+
+    // Lưu thông tin user vào localStorage
+    if (user && user.user) {
+      console.log('User data:', user.user);
+      console.log('User ID:', user.user.id);
+      localStorage.setItem('username', user.user.username);
+      localStorage.setItem('userId', user.user.id);
+      localStorage.setItem('userData', JSON.stringify(user));
+      
+      // Verify saved data
+      console.log('Saved username:', localStorage.getItem('username'));
+      console.log('Saved userId:', localStorage.getItem('userId'));
+      console.log('Saved userData:', localStorage.getItem('userData'));
     }
 
-    try {
-      setError('');
-      setLoading(true);
-      await login(username, password, role);
-
-      // Lưu username vào localStorage sau khi đăng nhập thành công
-      localStorage.setItem('username', username);
-
-      // Chuyển hướng dựa trên vai trò
-      if (role === 'admin') {
-        navigate('/admin');
-      } else {
-        navigate('/');
-      }
-    } catch (error) {
-      setError(error.message);
-    } finally {
-      setLoading(false);
+    // Chuyển hướng dựa trên vai trò
+    if (role === 'admin') {
+      navigate('/admin');
+    } else {
+      navigate('/');
     }
-  };
+  } catch (error) {
+    setError(error.message);
+    setLoading(false);
+  }
+};
+
 
   return (
     <Box

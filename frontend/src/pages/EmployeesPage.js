@@ -67,7 +67,6 @@ const EmployeesPage = () => {
 
   const { enqueueSnackbar } = useSnackbar();
 
-  // Fetch data
   useEffect(() => {
     fetchData();
   }, []);
@@ -75,17 +74,34 @@ const EmployeesPage = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const currentUsername = localStorage.getItem('username');
+      const userId = localStorage.getItem('userId');
+      console.log('Current userId:', userId);
+
+      if (!userId) {
+        setError('Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.');
+        return;
+      }
+
       const [employeesRes, departmentsRes, shiftsRes] = await Promise.all([
         employeeApi.getAll(),
         departmentApi.getAll(),
         shiftApi.getAll(),
       ]);
 
-      // Lọc nhân viên dựa trên username nếu không phải admin
-      const filteredEmployees = currentUsername === 'admin'
-        ? employeesRes.data
-        : employeesRes.data.filter(employee => employee.username === currentUsername);
+      console.log('All departments:', departmentsRes.data);
+      console.log('All shifts:', shiftsRes.data);
+      console.log('All employees:', employeesRes.data);
+
+      // Lọc nhân viên dựa trên userId
+      const filteredEmployees = employeesRes.data.filter(employee => {
+        console.log('Processing employee:', employee);
+        // Convert to string for comparison
+        const employeeUsername = String(employee.username);
+        const userIdStr = String(userId);
+        return employeeUsername === userIdStr || userIdStr === '1';
+      });
+
+      console.log('Filtered employees:', filteredEmployees);
 
       setEmployees(filteredEmployees);
       setDepartments(departmentsRes.data);
@@ -98,24 +114,10 @@ const EmployeesPage = () => {
     }
   };
 
-  const fetchEmployees = async () => {
-    try {
-      const currentUsername = localStorage.getItem('username');
-      const response = await employeeApi.getAll();
-      const filteredEmployees = currentUsername === 'admin'
-        ? response.data
-        : response.data.filter(employee => employee.username === currentUsername);
-      setEmployees(filteredEmployees);
-    } catch (err) {
-      console.error('Error fetching employees:', err);
-      setError('Có lỗi xảy ra khi tải danh sách nhân viên.');
-    }
-  };
-
   const handleEditEmployee = (employee) => {
-    const loggedInUsername = localStorage.getItem('username');
+    const userId = localStorage.getItem('userId'); // Thay thế username bằng userId
     setFormData({
-      username: employee.username || loggedInUsername,
+      username: employee.username || userId,  // Lấy userId từ localStorage
       employee_id: employee.employee_id,
       first_name: employee.first_name,
       last_name: employee.last_name,
@@ -123,17 +125,17 @@ const EmployeesPage = () => {
       phone: employee.phone || '',
       department: employee.department?.id || '', // Lấy id của phòng ban
       shift: employee.shift?.id || '',           // Lấy id của ca làm việc
-      is_active: employee.is_active || true      // Thêm trường is_active
     });
     setCurrentEmployee(employee);
     setOpenDialog(true);
   };
 
   const handleOpenDialog = (employee = null) => {
-    const loggedInUsername = localStorage.getItem('username');
+    const loggedInUserId = localStorage.getItem('userId'); // Đổi tên biến để tránh trùng lặp
+
     if (employee) {
       setFormData({
-        username: employee.username || loggedInUsername,
+        username: loggedInUserId,
         employee_id: employee.employee_id,
         first_name: employee.first_name,
         last_name: employee.last_name,
@@ -141,12 +143,12 @@ const EmployeesPage = () => {
         phone: employee.phone || '',
         department: employee.department?.id || '',
         shift: employee.shift?.id || '',
-        is_active: employee.is_active
+        is_active: employee.is_active,
       });
       setCurrentEmployee(employee);
     } else {
       setFormData({
-        username: loggedInUsername,
+        username: loggedInUserId,
         employee_id: '',
         first_name: '',
         last_name: '',
@@ -154,7 +156,7 @@ const EmployeesPage = () => {
         phone: '',
         department: '',
         shift: '',
-        is_active: true
+        is_active: true,
       });
       setCurrentEmployee(null);
     }
@@ -182,67 +184,60 @@ const EmployeesPage = () => {
     });
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     setLoading(true);
     try {
-      // Đảm bảo trường department và shift được gửi dưới dạng id (số)
-      const dataToSubmit = {
+      const userId = localStorage.getItem('userId');
+      console.log('Submitting with userId:', userId);
+
+      if (!userId) {
+        setError('Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.');
+        return;
+      }
+
+      const data = {
         ...formData,
-        department: formData.department ? Number(formData.department) : null,
-        shift: formData.shift ? Number(formData.shift) : null,
-        is_active: true
+        username: userId,
+        department: formData.department || null,
+        shift: formData.shift || null
       };
 
+      console.log('Submitting data:', data);
+
       if (currentEmployee) {
-        await employeeApi.update(currentEmployee.id, dataToSubmit);
-        enqueueSnackbar('Cập nhật thông tin nhân viên thành công!', { variant: 'success' });
+        await employeeApi.update(currentEmployee.id, data);
+        enqueueSnackbar('Cập nhật thông tin nhân viên thành công', { variant: 'success' });
       } else {
-        const response = await employeeApi.create(dataToSubmit);
-        enqueueSnackbar(
-          <div>
-            <div>Thêm nhân viên thành công!</div>
-            <div style={{ marginTop: '8px' }}>
-              <strong>Thông tin đăng nhập:</strong>
-              <div>Tài khoản: {formData.employee_id}</div>
-              <div>Mật khẩu: {formData.employee_id}</div>
-            </div>
-          </div>,
-          { 
-            variant: 'success',
-            autoHideDuration: 6000,
-            anchorOrigin: {
-              vertical: 'top',
-              horizontal: 'center',
-            },
-          }
-        );
+        await employeeApi.create(data);
+        enqueueSnackbar('Thêm nhân viên mới thành công', { variant: 'success' });
       }
-      fetchEmployees();
+
       handleCloseDialog();
+      fetchData();
     } catch (err) {
-      console.error('Error saving employee:', err);
-      const errorMessage = err.response?.data?.error || 'Có lỗi xảy ra khi lưu thông tin nhân viên.';
-      enqueueSnackbar(errorMessage, { variant: 'error' });
+      console.error('Error submitting form:', err);
+      setError('Có lỗi xảy ra khi lưu thông tin. Vui lòng thử lại sau.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDeleteEmployee = (id) => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa nhân viên này không?')) {
-      setLoading(true);
-      employeeApi.delete(id)
-        .then(() => {
-          fetchEmployees();
-          enqueueSnackbar('Xóa nhân viên thành công!', { variant: 'success' });
-        })
-        .catch((err) => {
-          console.error('Error deleting employee:', err);
-          setError('Có lỗi xảy ra khi xóa nhân viên.');
-        })
-        .finally(() => {
-          setLoading(false);
-        });
+  const handleDeleteEmployee = async (employeeId) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa nhân viên này?')) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await employeeApi.delete(employeeId);
+      enqueueSnackbar('Xóa nhân viên thành công', { variant: 'success' });
+      fetchData();
+    } catch (err) {
+      console.error('Error deleting employee:', err);
+      setError('Có lỗi xảy ra khi xóa nhân viên. Vui lòng thử lại sau.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -359,7 +354,7 @@ const EmployeesPage = () => {
       employeeApi.update(employee.id, editData)
         .then(() => {
           enqueueSnackbar('Cập nhật thông tin nhân viên thành công!', { variant: 'success' });
-          fetchEmployees();
+          fetchData();
           setEditMode(false);
           onClose();
         })
@@ -457,7 +452,7 @@ const EmployeesPage = () => {
                       <InputLabel>Phòng ban</InputLabel>
                       <Select
                         name="department"
-                        value={editData.department}
+                        value={editData.department || ''}  // Đảm bảo giá trị không phải là undefined
                         onChange={handleEditInputChange}
                         label="Phòng ban"
                       >
@@ -477,7 +472,7 @@ const EmployeesPage = () => {
                       <InputLabel>Ca làm việc</InputLabel>
                       <Select
                         name="shift"
-                        value={editData.shift}
+                        value={editData.shift || ''}  // Đảm bảo giá trị không phải là undefined
                         onChange={handleEditInputChange}
                         label="Ca làm việc"
                       >
@@ -492,6 +487,7 @@ const EmployeesPage = () => {
                       </Select>
                     </FormControl>
                   </Grid>
+
                   <Grid item xs={12}>
                     <Button 
                       variant="contained" 
@@ -798,7 +794,7 @@ const EmployeesPage = () => {
             <TableBody>
               {employees.map((employee) => (
                 <TableRow 
-                  key={employee.id}
+                  key={employee.id || employee.employee_id}
                   hover
                   onClick={() => handleViewEmployee(employee)}
                   sx={{ cursor: 'pointer' }}
@@ -806,8 +802,16 @@ const EmployeesPage = () => {
                   <TableCell>{employee.username}</TableCell>
                   <TableCell>{employee.employee_id}</TableCell>
                   <TableCell>{employee.first_name} {employee.last_name}</TableCell>
-                  <TableCell>{employee.department?.name || 'Chưa phân phòng'}</TableCell>
-                  <TableCell>{employee.shift?.name || 'Chưa phân ca'}</TableCell>
+                  <TableCell>
+                    {typeof employee.department === 'string' 
+                      ? employee.department 
+                      : employee.department?.name || 'Chưa phân phòng'}
+                  </TableCell>
+                  <TableCell>
+                    {typeof employee.shift === 'string'
+                      ? employee.shift
+                      : employee.shift?.name || 'Chưa phân ca'}
+                  </TableCell>
                   <TableCell>
                     <div>{employee.email}</div>
                     <div>{employee.phone}</div>
@@ -837,7 +841,7 @@ const EmployeesPage = () => {
                       <IconButton 
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDeleteEmployee(employee.id);
+                          handleDeleteEmployee(employee.employee_id);
                         }}
                       >
                         <DeleteIcon />

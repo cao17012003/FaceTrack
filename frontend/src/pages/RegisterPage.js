@@ -12,10 +12,10 @@ import {
   Avatar,
   useTheme,
 } from '@mui/material';
+import { authApi } from '../services/api';
 import PersonIcon from '@mui/icons-material/Person';
 import LockIcon from '@mui/icons-material/Lock';
 import SecurityIcon from '@mui/icons-material/Security';
-import { authApi } from '../services/api';
 
 const RegisterPage = () => {
   const [formData, setFormData] = useState({
@@ -23,7 +23,7 @@ const RegisterPage = () => {
     email: '',
     password: '',
     confirm_password: '',
-    role: 'user'  // Mặc định là user
+    role: 'user', // Mặc định là user
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -53,12 +53,11 @@ const RegisterPage = () => {
     setLoading(true);
     setError('');
     try {
-      // Gửi request đăng ký sử dụng authApi
       const { confirm_password, ...registerData } = formData;
       const response = await authApi.register(registerData);
-      
+
       if (response.data.success) {
-        // Nếu backend trả về thông tin user (chứa id, username, ...)
+        // Đăng ký thành công, lưu thông tin user vào localStorage
         const { user } = response.data;
         if (user) {
           // Lưu id và username vào localStorage
@@ -67,6 +66,7 @@ const RegisterPage = () => {
             username: user.username
           }));
         }
+
         // Sau khi đăng ký thành công, chuyển hướng về trang đăng nhập
         navigate('/login');
       } else {
@@ -78,6 +78,7 @@ const RegisterPage = () => {
       setLoading(false);
     }
   };
+
 
   return (
     <Box

@@ -2,23 +2,23 @@ from django.db import models
 from django.contrib.auth.models import User
 
 class Department(models.Model):
-    name = models.CharField(max_length=100)
+    name = models.CharField(max_length=100,primary_key=True)
     description = models.TextField(blank=True, null=True)
-    username = models.CharField(max_length=100, blank=True, null=True)
+    username = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='departments')
     def __str__(self):
         return self.name
 
 class Shift(models.Model):
-    name = models.CharField(max_length=100)
+    name = models.CharField(max_length=100,primary_key=True)
     start_time = models.TimeField()
     end_time = models.TimeField()
     description = models.TextField(blank=True, null=True)
-    username = models.CharField(max_length=100, blank=True, null=True)
+    username = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='shifts')
     def __str__(self):
         return f"{self.name} ({self.start_time} - {self.end_time})"
 
 class UserProfile(models.Model):
-    username = models.CharField(max_length=100, blank=True, null=True)
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
     is_admin = models.BooleanField(default=False)
     is_user = models.BooleanField(default=False)
     departments = models.ManyToManyField(Department, blank=True)
@@ -29,8 +29,7 @@ class UserProfile(models.Model):
         return f"{self.user.username} - {'Admin' if self.is_admin else 'User' if self.is_user else 'Employee'}"
 
 class Employee(models.Model):
-    username = models.CharField(max_length=100, blank=True, null=True)
-    employee_id = models.CharField(max_length=20, unique=True)
+    employee_id = models.CharField(max_length=20, unique=True, primary_key=True)
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
     department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True)
@@ -41,6 +40,7 @@ class Employee(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)
     profile_image = models.ImageField(upload_to='employee_profiles/', blank=True, null=True)
+    username = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='employees')
     def __str__(self):
         return f"{self.employee_id} - {self.first_name} {self.last_name}"
     class Meta:
