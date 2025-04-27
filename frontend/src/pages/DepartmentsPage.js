@@ -141,11 +141,11 @@ const DepartmentsPage = () => {
   };
 
   // Xử lý xóa phòng ban
-  const handleDelete = async (id) => {
+  const handleDelete = async (name) => {
     if (window.confirm('Bạn có chắc chắn muốn xóa phòng ban này?')) {
       setLoading(true);
       try {
-        await departmentApi.delete(id);
+        await departmentApi.delete(name);
         // Làm mới danh sách và lọc theo userId
         const response = await departmentApi.getAll();
         const userId = localStorage.getItem('userId');
@@ -215,7 +215,7 @@ const DepartmentsPage = () => {
                       </IconButton>
                       <IconButton
                         color="secondary"
-                        onClick={() => handleDelete(department.id)}
+                        onClick={() => handleDelete(department.name)}
                       >
                         <DeleteIcon />
                       </IconButton>

@@ -52,10 +52,31 @@ const DashboardPage = () => {
         });
 
         // Cập nhật dữ liệu biểu đồ điểm danh
-        setAttendanceData(attendanceSummary.data);
+        if (attendanceSummary.data && attendanceSummary.data.days) {
+          // Transform the data to match the expected format for the chart
+          const transformedAttendanceData = attendanceSummary.data.days.map(day => ({
+            day: day.day_name,
+            onTime: day.count,
+            late: 0,
+            absent: 0
+          }));
+          setAttendanceData(transformedAttendanceData);
+        } else {
+          setAttendanceData([]);
+        }
 
         // Cập nhật dữ liệu biểu đồ phòng ban
-        setDepartmentData(departmentSummary.data);
+        if (departmentSummary.data && departmentSummary.data.departments) {
+          // Transform the data to match the expected format for the chart
+          const transformedDepartmentData = departmentSummary.data.departments.map(dept => ({
+            name: dept.name,
+            value: dept.total_employees,
+            color: departmentColors[dept.name] || '#' + Math.floor(Math.random()*16777215).toString(16)
+          }));
+          setDepartmentData(transformedDepartmentData);
+        } else {
+          setDepartmentData([]);
+        }
       } catch (error) {
         console.error('Lỗi khi tải dữ liệu dashboard:', error);
         setError('Không thể tải dữ liệu dashboard. Vui lòng thử lại sau.');

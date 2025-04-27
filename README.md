@@ -1,66 +1,126 @@
-# FaceTrack-AI
+## FaceTrack-AI - Hệ thống chấm công khuôn mặt
 
-Hệ thống chấm công thông minh sử dụng công nghệ nhận diện khuôn mặt (Face Recognition)
+FaceTrack-AI là hệ thống chấm công hiện đại sử dụng trí tuệ nhân tạo để nhận diện khuôn mặt, hỗ trợ chống giả mạo với DeepFace.
 
-## Tính năng
+### Tính năng chính
 
-- Nhận diện khuôn mặt để điểm danh vào/ra
-- Phát hiện và ngăn chặn giả mạo khuôn mặt
-- Quản lý nhân viên, phòng ban và ca làm việc
-- Thống kê điểm danh và báo cáo
-- Hệ thống thông báo
-- Dashboard trực quan
-- Phân quyền admin và nhân viên
+- Nhận diện khuôn mặt chính xác với DeepFace
+- Chống giả mạo với công nghệ anti-spoofing
+- Quản lý nhân viên và chấm công
+- Dashboard trực quan hiển thị thống kê
+- API RESTful
+- Giao diện người dùng thân thiện
 
-## Công nghệ sử dụng
+### Yêu cầu hệ thống
 
-### Backend
-- Django & Django REST Framework
-- Sqlite3 (cơ sở dữ liệu)
-- Face Recognition (thư viện nhận diện khuôn mặt)
-- OpenCV (xử lý hình ảnh)
+- Python 3.7+
+- Node.js 14+
+- Các thư viện Python: DeepFace, OpenCV, Django, Django REST framework
+- Các thư viện JavaScript: React, Material-UI, Axios
 
-### Frontend
-- React
-- Material-UI
-- Chart.js
-- Axios
+### Cài đặt
 
-## Cài đặt và chạy
+1. Clone repository
+```bash
+git clone https://github.com/your-username/FaceTrack-AI.git
+cd FaceTrack-AI
+```
 
-### Backend
-
+2. Cài đặt dependencies cho backend
 ```bash
 cd backend
-python -m venv env
-source env/bin/activate  # Windows: env\Scripts\activate
 pip install -r requirements.txt
-python manage.py migrate
-python manage.py createsuperuser
+```
+
+3. Cài đặt dependencies cho frontend
+```bash
+cd ../frontend
+npm install
+```
+
+### Chạy ứng dụng
+
+#### Sử dụng script tự động
+
+Chúng tôi cung cấp các script shell để dễ dàng chạy và quản lý ứng dụng:
+
+1. Chạy cả backend và frontend
+```bash
+chmod +x run_app.sh
+./run_app.sh
+```
+
+2. Dừng tất cả các dịch vụ
+```bash
+chmod +x stop_app.sh
+./stop_app.sh
+```
+
+3. Debug ứng dụng
+```bash
+chmod +x debug_app.sh
+./debug_app.sh
+```
+
+#### Chạy thủ công
+
+1. Chạy backend (Django)
+```bash
+cd backend
 python manage.py runserver
 ```
 
-### Frontend
-
+2. Chạy frontend (React)
 ```bash
 cd frontend
-npm install
 npm start
 ```
 
-## Cấu trúc dự án
+### Debug và Xử lý sự cố
 
-- **backend/**: API Django/DRF
-  - **employees/**: Quản lý nhân viên và nhận diện khuôn mặt
-  - **attendance/**: Quản lý điểm danh
-  - **notifications/**: Quản lý thông báo
-  - **api/**: API chung và Dashboard
+Script `debug_app.sh` cung cấp nhiều công cụ để debug:
 
-- **frontend/**: Ứng dụng React
-  - **src/pages/**: Các trang của ứng dụng
-  - **src/components/**: Components tái sử dụng
-  - **src/contexts/**: React contexts cho state management
+- Kiểm tra trạng thái backend/frontend
+- Xem logs 
+- Kiểm tra kết nối cơ sở dữ liệu
+- Theo dõi logs theo thời gian thực
+- Chạy các test cơ bản
+- Hiển thị thông tin phiên bản thư viện
 
-## Tác giả
+### Cấu trúc thư mục
 
-FaceTrack-AI Team 
+```
+FaceTrack-AI/
+├── backend/             # Django backend
+│   ├── api/             # API endpoints
+│   ├── attendance/      # App quản lý chấm công
+│   ├── employees/       # App quản lý nhân viên
+│   ├── face_checkin/    # App cấu hình Django chính
+│   └── manage.py        # Django CLI
+│
+├── frontend/            # React frontend
+│   ├── public/          # Tài nguyên tĩnh
+│   ├── src/             # Mã nguồn React
+│   │   ├── components/  # React components
+│   │   ├── pages/       # Các trang
+│   │   └── services/    # Dịch vụ API
+│   └── package.json     # Cấu hình npm
+│
+├── run_app.sh           # Script chạy ứng dụng
+├── stop_app.sh          # Script dừng ứng dụng
+└── debug_app.sh         # Script debug ứng dụng
+```
+
+### Thông tin về Anti-Spoofing
+
+FaceTrack-AI sử dụng công nghệ DeepFace để phát hiện khuôn mặt giả mạo:
+
+```python
+# Sử dụng với anti-spoofing
+face_objs = DeepFace.extract_faces(img_path="image.jpg", anti_spoofing=True)
+assert all(face_obj["is_real"] is True for face_obj in face_objs)
+```
+
+### Đóng góp
+
+Vui lòng đọc [CONTRIBUTING.md](CONTRIBUTING.md) để biết chi tiết về quy trình gửi pull request. 

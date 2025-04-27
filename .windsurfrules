@@ -1,0 +1,2 @@
+run backend bằng ./run_backend.sh
+run frontend bằng ./run_frontend.sh

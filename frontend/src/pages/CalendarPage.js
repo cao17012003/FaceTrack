@@ -146,11 +146,11 @@ const CalendarPage = () => {
   };
 
   const handleEmployeeChange = (e) => {
-    setSelectedEmployee(e.target.value);
+    setSelectedEmployee(e.target.value || ''); // Ensure it's never undefined
   };
 
   const handleDepartmentChange = (e) => {
-    setSelectedDepartment(e.target.value);
+    setSelectedDepartment(e.target.value || ''); // Ensure it's never undefined
   };
 
   // Update when filters change
@@ -212,10 +212,10 @@ const CalendarPage = () => {
                 onChange={handleViewChange}
                 label={t('calendar.view')}
               >
-                <MenuItem value="month">{t('calendar.month')}</MenuItem>
-                <MenuItem value="week">{t('calendar.week')}</MenuItem>
-                <MenuItem value="day">{t('calendar.day')}</MenuItem>
-                <MenuItem value="agenda">{t('calendar.list')}</MenuItem>
+                <MenuItem key="month" value="month">{t('calendar.month')}</MenuItem>
+                <MenuItem key="week" value="week">{t('calendar.week')}</MenuItem>
+                <MenuItem key="day" value="day">{t('calendar.day')}</MenuItem>
+                <MenuItem key="agenda" value="agenda">{t('calendar.list')}</MenuItem>
               </Select>
             </FormControl>
           </Grid>

@@ -89,19 +89,8 @@ const EmployeesPage = () => {
       ]);
 
       console.log('All departments:', departmentsRes.data);
-      console.log('Departments data structure:', departmentsRes.data.length > 0 ? JSON.stringify(departmentsRes.data[0]) : 'No departments');
       console.log('All shifts:', shiftsRes.data);
-      console.log('Shifts data structure:', shiftsRes.data.length > 0 ? JSON.stringify(shiftsRes.data[0]) : 'No shifts');
       console.log('All employees:', employeesRes.data);
-      console.log('Employee data structure:', employeesRes.data.length > 0 ? JSON.stringify(employeesRes.data[0]) : 'No employees');
-      
-      // Check specific employee data
-      const emp002 = employeesRes.data.find(emp => emp.employee_id === 'EMP002');
-      if (emp002) {
-        console.log('EMP002 details:', JSON.stringify(emp002));
-        console.log('EMP002 department:', emp002.department);
-        console.log('EMP002 shift:', emp002.shift);
-      }
 
       // Lọc nhân viên dựa trên userId
       const filteredEmployees = employeesRes.data;
@@ -135,43 +124,7 @@ const EmployeesPage = () => {
       return;
     }
     
-    console.log('DEBUGGING EMPLOYEE EDIT:');
-    console.log('Employee to edit:', JSON.stringify(employee, null, 2));
-    console.log('Department type:', typeof employee.department);
-    console.log('Department value:', JSON.stringify(employee.department, null, 2));
-    console.log('Shift type:', typeof employee.shift);
-    console.log('Shift value:', JSON.stringify(employee.shift, null, 2));
-    
     const userId = localStorage.getItem('userId'); // Thay thế username bằng userId
-    
-    // Xác định giá trị department/shift từ dữ liệu nhân viên
-    let departmentValue = '';
-    if (employee.department) {
-      // Handle various possible structures of department data
-      if (typeof employee.department === 'string') {
-        departmentValue = employee.department;
-      } else if (typeof employee.department === 'object') {
-        // Try to extract the name using different possible property paths
-        departmentValue = employee.department.name || employee.department.id || '';
-        console.log('Department object value extracted:', departmentValue);
-      }
-    }
-    
-    let shiftValue = '';
-    if (employee.shift) {
-      // Handle various possible structures of shift data
-      if (typeof employee.shift === 'string') {
-        shiftValue = employee.shift;
-      } else if (typeof employee.shift === 'object') {
-        // Try to extract the name using different possible property paths
-        shiftValue = employee.shift.name || employee.shift.id || '';
-        console.log('Shift object value extracted:', shiftValue);
-      }
-    }
-    
-    console.log('Determined department value:', departmentValue);
-    console.log('Determined shift value:', shiftValue);
-    
     setFormData({
       username: employee.username || userId,  // Lấy userId từ localStorage
       employee_id: employee.employee_id,
@@ -179,8 +132,8 @@ const EmployeesPage = () => {
       last_name: employee.last_name,
       email: employee.email || '',
       phone: employee.phone || '',
-      department: departmentValue,
-      shift: shiftValue,
+      department: employee.department?.id || '', // Lấy id của phòng ban
+      shift: employee.shift?.id || '',           // Lấy id của ca làm việc
     });
     setCurrentEmployee({...employee}); // Tạo bản sao để tránh tham chiếu
     setOpenDialog(true);
@@ -382,11 +335,15 @@ const EmployeesPage = () => {
               let summaryData = null;
               
               if (response.data && response.data.face_data && Array.isArray(response.data.face_data)) {
+                // Trường hợp API trả về đối tượng {face_data: [...], summary: {...}}
                 faceDataArray = response.data.face_data;
                 summaryData = response.data.summary;
+                console.log('Face data from face_data property:', faceDataArray);
               } else if (Array.isArray(response.data)) {
+                // Trường hợp API trả về trực tiếp mảng
                 faceDataArray = response.data;
               } else if (response.data && typeof response.data === 'object') {
+                // Trường hợp khác
                 if (Array.isArray(response.data.results)) {
                   faceDataArray = response.data.results;
                 } else {
@@ -399,13 +356,16 @@ const EmployeesPage = () => {
               
               // Tạo tóm tắt dữ liệu khuôn mặt
               let summary = {};
+              
               if (summaryData) {
+                // Sử dụng dữ liệu summary từ API nếu có
                 summary = {
                   total_face_data: summaryData.total_face_data || faceDataArray.length,
                   total_recent_attendances: summaryData.total_recent_attendances || 0,
                   last_attendance: summaryData.last_attendance || null
                 };
               } else {
+                // Tự tính toán nếu không có summary từ API
                 let totalMatches = faceDataArray.reduce((sum, face) => sum + (face.successful_matches || 0), 0);
                 summary = {
                   total_face_data: faceDataArray.length,
@@ -431,15 +391,10 @@ const EmployeesPage = () => {
           last_name: employee.last_name || '',
           email: employee.email || '',
           phone: employee.phone || '',
-          department: typeof employee.department === 'string' ? employee.department : employee.department?.name || '',
-          shift: typeof employee.shift === 'string' ? employee.shift : employee.shift?.name || '',
+          department: employee.department?.id || '',
+          shift: employee.shift?.id || '',
           id: employee.id || employee.employee_id, // Lưu ID để sử dụng khi cập nhật
           employee_id: employee.employee_id, // Đảm bảo lưu employee_id
-        });
-        
-        console.log('Edit data initialized:', {
-          department: typeof employee.department === 'string' ? employee.department : employee.department?.name || '',
-          shift: typeof employee.shift === 'string' ? employee.shift : employee.shift?.name || '',
         });
       }
     }, [employee, open]);
@@ -500,18 +455,8 @@ const EmployeesPage = () => {
       }
 
       console.log('Updating employee with ID:', employeeId);
-      console.log('Update data before sending:', editData);
-      
-      // Prepare data for update
-      const dataToSend = {
-        ...editData,
-        department: editData.department || null,
-        shift: editData.shift || null
-      };
-      
-      console.log('Final data to send:', dataToSend);
       setLoading(true);
-      employeeApi.update(employeeId, dataToSend)
+      employeeApi.update(employeeId, editData)
         .then(() => {
           enqueueSnackbar('Cập nhật thông tin nhân viên thành công!', { variant: 'success' });
           fetchData();
@@ -614,14 +559,13 @@ const EmployeesPage = () => {
                         name="department"
                         value={editData.department || ''}
                         onChange={handleEditInputChange}
-                        displayEmpty
                         label="Phòng ban"
                       >
                         <MenuItem key="no-department" value="">
                           <em>Không có phòng ban</em>
                         </MenuItem>
                         {Array.isArray(departments) && departments.map(dept => (
-                          <MenuItem key={dept.name} value={dept.name}>{dept.name}</MenuItem>
+                          <MenuItem key={dept.id || `dept-${dept.name}`} value={dept.id}>{dept.name}</MenuItem>
                         ))}
                       </Select>
                     </FormControl>
@@ -633,14 +577,13 @@ const EmployeesPage = () => {
                         name="shift"
                         value={editData.shift || ''}
                         onChange={handleEditInputChange}
-                        displayEmpty
                         label="Ca làm việc"
                       >
                         <MenuItem key="no-shift" value="">
                           <em>Không có ca làm việc</em>
                         </MenuItem>
                         {Array.isArray(shifts) && shifts.map(shift => (
-                          <MenuItem key={shift.name} value={shift.name}>{shift.name}</MenuItem>
+                          <MenuItem key={shift.id || `shift-${shift.name}`} value={shift.id}>{shift.name}</MenuItem>
                         ))}
                       </Select>
                     </FormControl>
@@ -711,70 +654,121 @@ const EmployeesPage = () => {
                   {faceData.map((face, index) => {
                     console.log('Rendering face item:', face);
                     return (
-                      <ImageListItem key={face.id || index} sx={{ position: 'relative' }}>
-                        <img
-                          src={face.image || (face.face_image && `data:image/jpeg;base64,${face.face_image}`)}
-                          alt={`Khuôn mặt của ${employee.first_name}`}
-                          loading="lazy"
-                          style={{ borderRadius: 8, cursor: 'pointer', width: '100%', height: '120px', objectFit: 'cover' }}
-                          onClick={() => handleImageClick(face)}
-                          onError={(e) => {
-                            console.error('Lỗi khi tải ảnh khuôn mặt:', face);
-                            e.target.src = 'https://via.placeholder.com/100?text=No+Image';
-                          }}
-                        />
-                        <Box 
-                          sx={{ 
-                            position: 'absolute', 
-                            top: 0, 
-                            right: 0, 
-                            bgcolor: 'rgba(0,0,0,0.5)',
-                            borderRadius: '0 0 0 8px',
-                            p: 0.5
-                          }}
-                        >
-                          <Tooltip title="Xóa khuôn mặt này">
-                            <IconButton 
-                              size="small" 
-                              color="error"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteFaceData(face.id);
-                              }}
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </Box>
-                        <Box 
-                          sx={{ 
-                            position: 'absolute', 
-                            bottom: 0, 
-                            left: 0, 
-                            right: 0, 
-                            bgcolor: 'rgba(0,0,0,0.5)',
-                            color: 'white',
-                            p: 0.5,
-                            fontSize: '0.75rem',
-                            textAlign: 'center'
-                          }}
-                        >
-                          {face.created_at ? new Date(face.created_at).toLocaleDateString('vi-VN') : 'N/A'}
-                          {face.successful_matches > 0 && (
-                            <Box sx={{ mt: 0.5 }}>
-                              <Tooltip title="Số lần nhận diện thành công trong 7 ngày">
-                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                                  <CheckIcon fontSize="small" sx={{ fontSize: '0.7rem' }} />
-                                  <span>{face.successful_matches} lần</span>
-                                </Box>
-                              </Tooltip>
-                            </Box>
-                          )}
-                        </Box>
-                      </ImageListItem>
+                    // Đảm bảo key duy nhất cho mỗi khuôn mặt
+                    <ImageListItem key={face.id || index} sx={{ position: 'relative' }}>
+                      <img
+                        src={face.image || (face.face_image && `data:image/jpeg;base64,${face.face_image}`)}
+                        alt={`Khuôn mặt của ${employee.first_name}`}
+                        loading="lazy"
+                        style={{ borderRadius: 8, cursor: 'pointer', width: '100%', height: '120px', objectFit: 'cover' }}
+                        onClick={() => handleImageClick(face)}
+                        onError={(e) => {
+                          console.error('Lỗi khi tải ảnh khuôn mặt:', face);
+                          e.target.src = 'https://via.placeholder.com/100?text=No+Image';
+                        }}
+                      />
+                      <Box 
+                        sx={{ 
+                          position: 'absolute', 
+                          top: 0, 
+                          right: 0, 
+                          bgcolor: 'rgba(0,0,0,0.5)',
+                          borderRadius: '0 0 0 8px',
+                          p: 0.5
+                        }}
+                      >
+                        <Tooltip title="Xóa khuôn mặt này">
+                          <IconButton 
+                            size="small" 
+                            color="error"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteFaceData(face.id);
+                            }}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                      <Box 
+                        sx={{ 
+                          position: 'absolute', 
+                          bottom: 0, 
+                          left: 0, 
+                          right: 0, 
+                          bgcolor: 'rgba(0,0,0,0.5)',
+                          color: 'white',
+                          p: 0.5,
+                          fontSize: '0.75rem',
+                          textAlign: 'center'
+                        }}
+                      >
+                        {face.created_at ? new Date(face.created_at).toLocaleDateString('vi-VN') : 'N/A'}
+                        {face.successful_matches > 0 && (
+                          <Box sx={{ mt: 0.5 }}>
+                            <Tooltip title="Số lần nhận diện thành công trong 7 ngày">
+                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                                <CheckIcon fontSize="small" sx={{ fontSize: '0.7rem' }} />
+                                <span>{face.successful_matches} lần</span>
+                              </Box>
+                            </Tooltip>
+                          </Box>
+                        )}
+                      </Box>
+                    </ImageListItem>
                     );
                   })}
-                  </ImageList>
+                      <Box 
+                        sx={{ 
+                          position: 'absolute', 
+                          top: 0, 
+                          right: 0, 
+                          bgcolor: 'rgba(0,0,0,0.5)',
+                          borderRadius: '0 0 0 8px',
+                          p: 0.5
+                        }}
+                      >
+                        <Tooltip title="Xóa khuôn mặt này">
+                          <IconButton 
+                            size="small" 
+                            color="error"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteFaceData(face.id);
+                            }}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                      <Box 
+                        sx={{ 
+                          position: 'absolute', 
+                          bottom: 0, 
+                          left: 0, 
+                          right: 0, 
+                          bgcolor: 'rgba(0,0,0,0.5)',
+                          color: 'white',
+                          p: 0.5,
+                          fontSize: '0.75rem',
+                          textAlign: 'center'
+                        }}
+                      >
+                        {face.created_at ? new Date(face.created_at).toLocaleDateString('vi-VN') : 'N/A'}
+                        {face.successful_matches > 0 && (
+                          <Box sx={{ mt: 0.5 }}>
+                            <Tooltip title="Số lần nhận diện thành công trong 7 ngày">
+                              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                                <CheckIcon fontSize="small" sx={{ fontSize: '0.7rem' }} />
+                                <span>{face.successful_matches} lần</span>
+                              </Box>
+                            </Tooltip>
+                          </Box>
+                        )}
+                      </Box>
+                    </ImageListItem>
+                  ))}
+                </ImageList>
               ) : (
                 <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', p: 3, backgroundColor: 'background.paper', borderRadius: 1 }}>
                   <CameraAlt sx={{ fontSize: 40, color: 'text.secondary', mb: 1 }} />
@@ -969,18 +963,14 @@ const EmployeesPage = () => {
                   <TableCell>{employee.employee_id}</TableCell>
                   <TableCell>{employee.first_name} {employee.last_name}</TableCell>
                   <TableCell>
-                    {employee.department
-                      ? (typeof employee.department === 'string' 
-                         ? employee.department 
-                         : (employee.department?.name || employee.department_name || 'Chưa phân phòng'))
-                      : 'Chưa phân phòng'}
+                    {typeof employee.department === 'string' 
+                      ? employee.department 
+                      : employee.department?.name || 'Chưa phân phòng'}
                   </TableCell>
                   <TableCell>
-                    {employee.shift
-                      ? (typeof employee.shift === 'string'
-                         ? employee.shift
-                         : (employee.shift?.name || employee.shift_name || 'Chưa phân ca'))
-                      : 'Chưa phân ca'}
+                    {typeof employee.shift === 'string'
+                      ? employee.shift
+                      : employee.shift?.name || 'Chưa phân ca'}
                   </TableCell>
                   <TableCell>
                     <div>{employee.email}</div>
@@ -1104,14 +1094,11 @@ const EmployeesPage = () => {
                   <MenuItem key="no-department" value="">
                     <em>Không có phòng ban</em>
                   </MenuItem>
-                  {departments && departments.map((dept) => {
-                    console.log('Department in dropdown:', dept.name);
-                    return (
-                      <MenuItem key={dept.name} value={dept.name}>
-                        {dept.name || 'Unnamed Department'}
-                      </MenuItem>
-                    );
-                  })}
+                  {departments && departments.map((dept) => (
+                    <MenuItem key={dept.id || `dept-${dept.name}`} value={dept.id}>
+                      {dept.name}
+                    </MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             </Grid>
@@ -1127,14 +1114,11 @@ const EmployeesPage = () => {
                   <MenuItem key="no-shift" value="">
                     <em>Không có ca làm việc</em>
                   </MenuItem>
-                  {shifts && shifts.map((shift) => {
-                    console.log('Shift in dropdown:', shift.name);
-                    return (
-                      <MenuItem key={shift.name} value={shift.name}>
-                        {shift.name || 'Unnamed Shift'}
-                      </MenuItem>
-                    );
-                  })}
+                  {shifts && shifts.map((shift) => (
+                    <MenuItem key={shift.id || `shift-${shift.name}`} value={shift.id}>
+                      {shift.name}
+                    </MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             </Grid>

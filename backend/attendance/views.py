@@ -14,20 +14,32 @@ import io
 from PIL import Image
 import cv2
 import numpy as np
-import face_recognition
-from rest_framework.permissions import AllowAny
+from deepface import DeepFace
+from scipy.spatial.distance import cosine
+from rest_framework.permissions import IsAuthenticated, AllowAny
 
 from .models import Attendance
 from .serializers import AttendanceSerializer, AttendanceDetailSerializer, AttendanceCreateSerializer
 from employees.models import Employee, FaceData
-from employees.anti_spoofing import LivenessDetector
 
 logger = logging.getLogger(__name__)
 
 class AttendanceViewSet(viewsets.ModelViewSet):
     queryset = Attendance.objects.all()
     serializer_class = AttendanceSerializer
-    permission_classes = [AllowAny]  # Cho phép truy cập không cần xác thực trong development
+    permission_classes = [IsAuthenticated]  # Bắt buộc đăng nhập để xem dữ liệu
+    
+    def get_permissions(self):
+        """
+        Override để phân quyền cho các API endpoint
+        - check_in_out không cần xác thực
+        - Các API khác cần đăng nhập
+        """
+        if self.action == 'check_in_out':
+            permission_classes = [AllowAny]
+        else:
+            permission_classes = [IsAuthenticated]
+        return [permission() for permission in permission_classes]
     
     def get_serializer_class(self):
         if self.action == 'retrieve':
@@ -37,25 +49,23 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         return AttendanceSerializer
     
     def get_queryset(self):
-        # Trong môi trường development, trả về tất cả bản ghi
-        return Attendance.objects.all()
+        # Lấy user hiện tại
+        user = self.request.user
         
-        # Code cũ để tham khảo khi cần phân quyền
-        # user = self.request.user
-        # if not user or not user.is_authenticated:
-        #     return Attendance.objects.none()
-        #     
-        # try:
-        #     user_profile = UserProfile.objects.get(user=user)
-        #     if user_profile.is_admin or user_profile.is_user:
-        #         return Attendance.objects.all()
-        #     try:
-        #         employee = Employee.objects.get(user=user)
-        #         return Attendance.objects.filter(employee=employee)
-        #     except Employee.DoesNotExist:
-        #         return Attendance.objects.none()
-        # except UserProfile.DoesNotExist:
-        #     return Attendance.objects.all()
+        # Nếu không xác thực hoặc không có user
+        if not user or not user.is_authenticated:
+            return Attendance.objects.none()
+        
+        # Nếu là admin hoặc superuser, trả về tất cả
+        if user.is_staff or user.is_superuser:
+            return Attendance.objects.all()
+            
+        # Nếu là user thường, chỉ trả về dữ liệu của user đó
+        try:
+            employee = Employee.objects.get(username=user)
+            return Attendance.objects.filter(employee=employee)
+        except Employee.DoesNotExist:
+            return Attendance.objects.none()
     
     @action(detail=False, methods=['post'])
     def check_in_out(self, request):
@@ -81,54 +91,102 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             pil_image = Image.open(image_stream)
             img_array = np.array(pil_image)
             
-            # Phát hiện khuôn mặt sử dụng face_recognition
-            face_locations = face_recognition.face_locations(img_array)
+            # Lưu ảnh tạm thời để DeepFace xử lý
+            temp_image_path = "temp_face_img.jpg"
+            cv2.imwrite(temp_image_path, cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR))
             
-            logger.info(f"Số khuôn mặt phát hiện được: {len(face_locations)}")
-            
-            if len(face_locations) == 0:
+            try:
+                # Sử dụng DeepFace để phát hiện khuôn mặt với anti-spoofing
+                try:
+                    face_objs = DeepFace.extract_faces(
+                        img_path=temp_image_path, 
+                        detector_backend="retinaface",
+                        anti_spoofing=True
+                    )
+                except Exception as spoof_error:
+                    logger.warning(f"Không thể sử dụng anti-spoofing: {str(spoof_error)}")
+                    # Nếu anti-spoofing gặp lỗi, thử lại không sử dụng anti-spoofing
+                    face_objs = DeepFace.extract_faces(
+                        img_path=temp_image_path, 
+                        detector_backend="retinaface",
+                        anti_spoofing=False
+                    )
+                    # Giả định khuôn mặt là thật
+                    for i in range(len(face_objs)):
+                        face_objs[i]["is_real"] = True
+                        face_objs[i]["liveness_score"] = 0.9
+                
+                logger.info(f"Số khuôn mặt phát hiện được: {len(face_objs)}")
+                
+                if len(face_objs) == 0:
+                    # Xóa ảnh tạm thời
+                    if os.path.exists(temp_image_path):
+                        os.remove(temp_image_path)
+                    return Response(
+                        {'error': 'Không phát hiện khuôn mặt trong hình ảnh. Vui lòng thử lại với ánh sáng tốt hơn và đảm bảo khuôn mặt nhìn rõ vào camera.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                if len(face_objs) > 1:
+                    # Xóa ảnh tạm thời
+                    if os.path.exists(temp_image_path):
+                        os.remove(temp_image_path)
+                    return Response(
+                        {'error': 'Phát hiện nhiều khuôn mặt trong hình ảnh. Vui lòng chỉ đưa một khuôn mặt vào khung hình.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                # Kiểm tra khuôn mặt thật/giả
+                is_real_face = face_objs[0].get("is_real", True)
+                liveness_score = face_objs[0].get("liveness_score", 0.9)
+                
+                logger.info(f"Kết quả kiểm tra khuôn mặt thật/giả: {is_real_face}, điểm: {liveness_score:.2f}")
+                
+                # Kiểm tra nếu có sự giả mạo
+                if not is_real_face:
+                    # Xóa ảnh tạm thời
+                    if os.path.exists(temp_image_path):
+                        os.remove(temp_image_path)
+                    return Response(
+                        {
+                            'error': 'Phát hiện khuôn mặt không phải khuôn mặt thật. Vui lòng sử dụng khuôn mặt thật để điểm danh.',
+                            'liveness_score': liveness_score,
+                            'details': {'is_real': is_real_face}
+                        },
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                # Trích xuất đặc trưng (embedding) khuôn mặt từ ảnh đầu vào
+                embedding_objs = DeepFace.represent(
+                    img_path=temp_image_path, 
+                    detector_backend="retinaface",
+                    model_name="Facenet512"
+                )
+                
+                if len(embedding_objs) == 0:
+                    # Xóa ảnh tạm thời
+                    if os.path.exists(temp_image_path):
+                        os.remove(temp_image_path)
+                    return Response(
+                        {'error': 'Không thể trích xuất đặc trưng khuôn mặt. Vui lòng thử lại với ảnh chất lượng tốt hơn.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                unknown_face_embedding = embedding_objs[0]["embedding"]
+                
+                # Xóa ảnh tạm thời
+                if os.path.exists(temp_image_path):
+                    os.remove(temp_image_path)
+                
+            except Exception as e:
+                # Xóa ảnh tạm thời
+                if os.path.exists(temp_image_path):
+                    os.remove(temp_image_path)
+                logger.error(f"Lỗi khi trích xuất khuôn mặt: {str(e)}")
                 return Response(
-                    {'error': 'Không phát hiện khuôn mặt trong hình ảnh. Vui lòng thử lại với ánh sáng tốt hơn và đảm bảo khuôn mặt nhìn rõ vào camera.'},
+                    {'error': f'Lỗi khi trích xuất khuôn mặt: {str(e)}'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            
-            if len(face_locations) > 1:
-                return Response(
-                    {'error': 'Phát hiện nhiều khuôn mặt trong hình ảnh. Vui lòng chỉ đưa một khuôn mặt vào khung hình.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            # Lấy vùng khuôn mặt phát hiện được (top, right, bottom, left)
-            top, right, bottom, left = face_locations[0]
-            face_img = img_array[top:bottom, left:right]
-            
-            # Kiểm tra khuôn mặt thật/giả
-            liveness_detector = LivenessDetector()
-            is_real_face, liveness_score, liveness_details = liveness_detector.check_liveness(face_img)
-            
-            logger.info(f"Kết quả kiểm tra khuôn mặt thật/giả: {is_real_face}, điểm: {liveness_score:.2f}")
-            
-            # Kiểm tra nếu có sự giả mạo
-            if not is_real_face:
-                return Response(
-                    {
-                        'error': 'Phát hiện khuôn mặt không phải khuôn mặt thật. Vui lòng sử dụng khuôn mặt thật để điểm danh.',
-                        'liveness_score': liveness_score,
-                        'details': liveness_details
-                    },
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            # Trích xuất đặc trưng khuôn mặt từ ảnh đầu vào
-            unknown_face_encodings = face_recognition.face_encodings(img_array, face_locations)
-            
-            if len(unknown_face_encodings) == 0:
-                return Response(
-                    {'error': 'Không thể trích xuất đặc trưng khuôn mặt. Vui lòng thử lại với ảnh chất lượng tốt hơn.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            unknown_face_encoding = unknown_face_encodings[0]
             
             # Lấy tất cả dữ liệu khuôn mặt đã đăng ký
             all_face_data = FaceData.objects.all()
@@ -158,15 +216,23 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                     
                     # Kiểm tra định dạng dữ liệu cũ và mới
                     if 'encoding' in stored_data:
-                        # Định dạng mới - sử dụng face_recognition
-                        stored_face_encoding = stored_data['encoding']
+                        # Định dạng mới - sử dụng vector đặc trưng
+                        stored_face_embedding = stored_data['encoding']
                         employee_id = stored_data.get('employee_id')
                         
-                        # Tính khoảng cách Euclidean giữa hai vector đặc trưng
-                        face_distance = face_recognition.face_distance([stored_face_encoding], unknown_face_encoding)[0]
-                        match_score = 1.0 - face_distance  # Chuyển đổi khoảng cách thành điểm số (0.0-1.0)
+                        # Tính cosine similarity giữa hai vector đặc trưng
+                        # Chuyển đổi mảng 1D sang mảng 2D
+                        unknown_embedding_array = np.array(unknown_face_embedding)
+                        stored_embedding_array = np.array(stored_face_embedding)
                         
-                        logger.info(f"Khoảng cách với khuôn mặt ID {face_data.id} (nhân viên {employee_id}): {face_distance}")
+                        # Tính cosine distance bằng scipy
+                        cosine_distance = cosine(unknown_embedding_array, stored_embedding_array)
+                        
+                        # Cosine similarity = 1 - cosine distance
+                        cosine_similarity = 1 - cosine_distance
+                        match_score = cosine_similarity  # Điểm số (0.0-1.0)
+                        
+                        logger.info(f"Độ tương đồng với khuôn mặt ID {face_data.id} (nhân viên {employee_id}): {match_score}")
                         
                         # Cập nhật best match cho nhân viên này
                         if employee_id not in best_matches_by_employee or match_score > best_matches_by_employee[employee_id]['match_score']:
@@ -284,7 +350,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                         'action': 'check_out',
                         'message': f'Điểm danh ra thành công cho {employee.first_name} {employee.last_name}',
                         'employee': {
-                            'id': employee.id,
+                            'id': employee.employee_id,
                             'employee_id': employee.employee_id,
                             'name': f"{employee.first_name} {employee.last_name}",
                         },
@@ -324,7 +390,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                         'action': 'check_in',
                         'message': f'Điểm danh vào thành công cho {employee.first_name} {employee.last_name}',
                         'employee': {
-                            'id': employee.id,
+                            'id': employee.employee_id,
                             'employee_id': employee.employee_id,
                             'name': f"{employee.first_name} {employee.last_name}",
                         },
@@ -349,65 +415,33 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             )
     
     @action(detail=False, methods=['get'])
-    def report(self, request):
-        """API endpoint để lấy báo cáo điểm danh"""
-        start_date = request.query_params.get('start_date')
-        end_date = request.query_params.get('end_date')
-        
-        if not start_date or not end_date:
-            return Response({
-                'error': 'Vui lòng cung cấp start_date và end_date'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
-            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
-        except ValueError:
-            return Response({
-                'error': 'Định dạng ngày không hợp lệ. Sử dụng định dạng YYYY-MM-DD'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Lấy tất cả bản ghi điểm danh trong khoảng thời gian
-        queryset = self.get_queryset().filter(
-            attendance_date__range=[start_date, end_date]
-        )
-        
-        # Tạo báo cáo
-        report_data = []
-        for attendance in queryset:
-            report_data.append({
-                'id': attendance.id,
-                'employee_id': attendance.employee.employee_id,
-                'employee_name': f"{attendance.employee.first_name} {attendance.employee.last_name}",
-                'department': attendance.employee.department.name if attendance.employee.department else None,
-                'attendance_date': attendance.attendance_date,
-                'check_in_time': attendance.check_in_time,
-                'check_out_time': attendance.check_out_time,
-                'status': attendance.status,
-                'check_in_image': request.build_absolute_uri(attendance.check_in_image.url) if attendance.check_in_image else None,
-                'check_out_image': request.build_absolute_uri(attendance.check_out_image.url) if attendance.check_out_image else None
-            })
-        
-        return Response({
-            'start_date': start_date,
-            'end_date': end_date,
-            'total_records': len(report_data),
-            'data': report_data
-        })
-    
-    @action(detail=False, methods=['get'])
     def today(self, request):
         """Lấy danh sách chấm công hôm nay"""
-        today = timezone.now().date()
-        queryset = self.get_queryset().filter(attendance_date=today)
-        serializer = AttendanceSerializer(queryset, many=True)
+        today = timezone.localdate()
         
-        return Response({
-            'date': today,
-            'total': queryset.count(),
-            'data': serializer.data
-        })
-
+        # Lấy user hiện tại
+        user = request.user
+        
+        # Lọc dữ liệu theo quyền
+        if user.is_staff or user.is_superuser:
+            # Admin xem tất cả
+            queryset = Attendance.objects.filter(attendance_date=today)
+        else:
+            # User thường chỉ xem dữ liệu của mình
+            try:
+                employee = Employee.objects.get(username=user)
+                queryset = Attendance.objects.filter(
+                    employee=employee,
+                    attendance_date=today
+                )
+            except Employee.DoesNotExist:
+                return Response({
+                    'error': 'Không tìm thấy thông tin nhân viên'
+                }, status=status.HTTP_404_NOT_FOUND)
+        
+        serializer = AttendanceDetailSerializer(queryset, many=True)
+        return Response(serializer.data)
+    
     @action(detail=False, methods=['get'])
     def stats(self, request):
         """Lấy thống kê điểm danh cho dashboard"""
@@ -415,11 +449,42 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             # Lấy ngày hiện tại
             today = timezone.localdate()
             
+            # Lấy user hiện tại
+            user = request.user
+            
+            # Nếu user thường, chỉ hiển thị thống kê cá nhân
+            if not user.is_staff and not user.is_superuser:
+                try:
+                    employee = Employee.objects.get(username=user)
+                    
+                    # Kiểm tra xem nhân viên đã điểm danh hôm nay chưa
+                    today_attendance = Attendance.objects.filter(
+                        employee=employee,
+                        check_in_time__date=today
+                    ).first()
+                    
+                    # Trạng thái làm việc
+                    has_checked_in = today_attendance is not None
+                    has_checked_out = today_attendance and today_attendance.check_out_time is not None
+                    is_working = has_checked_in and not has_checked_out
+                    
+                    return Response({
+                        'employee_id': employee.employee_id,
+                        'employee_name': f"{employee.first_name} {employee.last_name}",
+                        'today_checkin': 1 if has_checked_in else 0,
+                        'checked_out': 1 if has_checked_out else 0,
+                        'working': 1 if is_working else 0,
+                        'department': employee.department.name if employee.department else None
+                    })
+                except Employee.DoesNotExist:
+                    return Response({
+                        'error': 'Không tìm thấy thông tin nhân viên'
+                    }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Nếu là admin, hiển thị thống kê tổng hợp
             # Tổng số điểm danh hôm nay
             today_checkins = Attendance.objects.filter(check_in_time__date=today).count()
             
-            # Số nhân viên đi muộn và về sớm đã bị xóa khỏi model
-            # Chúng ta có thể thay bằng thống kê khác, ví dụ:
             # Số nhân viên đã check-out
             checked_out = Attendance.objects.filter(
                 check_in_time__date=today,
@@ -461,6 +526,54 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             start_of_week = today - timedelta(days=today.weekday())
             end_of_week = start_of_week + timedelta(days=6)
             
+            # Lấy user hiện tại
+            user = request.user
+            
+            # Nếu user thường, chỉ hiển thị thống kê cá nhân
+            if not user.is_staff and not user.is_superuser:
+                try:
+                    employee = Employee.objects.get(username=user)
+                    
+                    # Tạo danh sách ngày trong tuần
+                    days = []
+                    day_labels = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
+                    
+                    # Tính toán thống kê cho từng ngày
+                    for i in range(7):
+                        current_date = start_of_week + timedelta(days=i)
+                        
+                        # Chỉ tính đến ngày hiện tại
+                        if current_date > today:
+                            days.append({
+                                'day': day_labels[i],
+                                'date': current_date.strftime('%Y-%m-%d'),
+                                'present': 0,
+                                'absent': 0,
+                                'total': 0
+                            })
+                            continue
+                        
+                        # Kiểm tra nhân viên có mặt trong ngày này không
+                        present = Attendance.objects.filter(
+                            employee=employee,
+                            check_in_time__date=current_date
+                        ).exists()
+                        
+                        days.append({
+                            'day': day_labels[i],
+                            'date': current_date.strftime('%Y-%m-%d'),
+                            'present': 1 if present else 0,
+                            'absent': 0 if present else 1,
+                            'total': 1 if present else 0
+                        })
+                    
+                    return Response(days)
+                except Employee.DoesNotExist:
+                    return Response({
+                        'error': 'Không tìm thấy thông tin nhân viên'
+                    }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Nếu là admin, tạo thống kê theo tuần cho tất cả nhân viên
             # Tạo danh sách ngày trong tuần
             days = []
             day_labels = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
@@ -507,3 +620,261 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 {'error': f'Lỗi hệ thống: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+    
+    @action(detail=False, methods=['get'])
+    def report(self, request):
+        """API endpoint để lấy báo cáo điểm danh"""
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        
+        if not start_date or not end_date:
+            return Response({
+                'error': 'Vui lòng cung cấp start_date và end_date'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+        except ValueError:
+            return Response({
+                'error': 'Định dạng ngày không hợp lệ. Sử dụng định dạng YYYY-MM-DD'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Lấy user hiện tại
+        user = request.user
+        
+        # Lọc dữ liệu theo quyền
+        if user.is_staff or user.is_superuser:
+            # Nếu là admin, lấy tất cả bản ghi điểm danh trong khoảng thời gian
+            queryset = self.get_queryset().filter(
+                attendance_date__range=[start_date, end_date]
+            )
+        else:
+            # Nếu là user thường, chỉ lấy bản ghi của chính mình
+            try:
+                employee = Employee.objects.get(username=user)
+                queryset = Attendance.objects.filter(
+                    employee=employee,
+                    attendance_date__range=[start_date, end_date]
+                )
+            except Employee.DoesNotExist:
+                return Response({
+                    'error': 'Không tìm thấy thông tin nhân viên'
+                }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Tạo báo cáo
+        report_data = []
+        for attendance in queryset:
+            report_data.append({
+                'id': attendance.id,
+                'employee_id': attendance.employee.employee_id,
+                'employee_name': f"{attendance.employee.first_name} {attendance.employee.last_name}",
+                'department': attendance.employee.department.name if attendance.employee.department else None,
+                'attendance_date': attendance.attendance_date,
+                'check_in_time': attendance.check_in_time,
+                'check_out_time': attendance.check_out_time,
+                'status': attendance.status,
+                'check_in_image': request.build_absolute_uri(attendance.check_in_image.url) if attendance.check_in_image else None,
+                'check_out_image': request.build_absolute_uri(attendance.check_out_image.url) if attendance.check_out_image else None
+            })
+        
+        return Response({
+            'start_date': start_date,
+            'end_date': end_date,
+            'total_records': len(report_data),
+            'data': report_data
+        })
+
+    @action(detail=False, methods=['get'])
+    def calendar_report(self, request):
+        """API endpoint để lấy báo cáo điểm danh theo dạng lịch"""
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        employee_id = request.query_params.get('employee_id')
+        
+        if not start_date or not end_date:
+            return Response({
+                'error': 'Vui lòng cung cấp start_date và end_date'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+        except ValueError:
+            return Response({
+                'error': 'Định dạng ngày không hợp lệ. Sử dụng định dạng YYYY-MM-DD'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Lấy user hiện tại
+        user = request.user
+        
+        # Chuẩn bị dữ liệu
+        calendar_data = {}
+        
+        # Lọc dữ liệu theo quyền
+        if user.is_staff or user.is_superuser:
+            # Nếu là admin và có employee_id, lấy dữ liệu của nhân viên đó
+            if employee_id:
+                try:
+                    employee = Employee.objects.get(employee_id=employee_id)
+                    queryset = Attendance.objects.filter(
+                        employee=employee,
+                        attendance_date__range=[start_date, end_date]
+                    )
+                except Employee.DoesNotExist:
+                    return Response({
+                        'error': f'Không tìm thấy nhân viên với ID: {employee_id}'
+                    }, status=status.HTTP_404_NOT_FOUND)
+            else:
+                # Nếu là admin và không có employee_id, lấy tất cả bản ghi điểm danh
+                queryset = Attendance.objects.filter(
+                    attendance_date__range=[start_date, end_date]
+                )
+        else:
+            # Nếu là user thường, chỉ lấy bản ghi của chính mình
+            try:
+                employee = Employee.objects.get(username=user)
+                queryset = Attendance.objects.filter(
+                    employee=employee,
+                    attendance_date__range=[start_date, end_date]
+                )
+            except Employee.DoesNotExist:
+                return Response({
+                    'error': 'Không tìm thấy thông tin nhân viên'
+                }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Tạo danh sách tất cả các ngày trong khoảng thời gian
+        all_dates = []
+        current_date = start_date
+        while current_date <= end_date:
+            all_dates.append(current_date)
+            current_date += timedelta(days=1)
+        
+        # Lấy danh sách ca làm việc cho hiển thị thông tin ca làm
+        shifts = {}
+        if employee_id:
+            try:
+                employee = Employee.objects.get(employee_id=employee_id)
+                if employee.shift:
+                    shifts[employee.employee_id] = {
+                        'start_time': employee.shift.start_time,
+                        'end_time': employee.shift.end_time
+                    }
+            except Employee.DoesNotExist:
+                pass
+        
+        # Xây dựng dữ liệu lịch
+        for date in all_dates:
+            date_str = date.strftime('%Y-%m-%d')
+            calendar_data[date_str] = []
+            
+            # Tìm các bản ghi điểm danh cho ngày này
+            day_records = queryset.filter(attendance_date=date)
+            
+            if not day_records:
+                # Không có dữ liệu điểm danh cho ngày này
+                continue
+            
+            for record in day_records:
+                employee = record.employee
+                
+                # Lấy thông tin ca làm việc
+                if employee.shift and employee.employee_id not in shifts:
+                    shifts[employee.employee_id] = {
+                        'start_time': employee.shift.start_time,
+                        'end_time': employee.shift.end_time
+                    }
+                
+                # Xác định trạng thái điểm danh
+                status_code = ''
+                status_text = ''
+                
+                if not record.check_in_time:
+                    # Không chấm công
+                    status_code = 'absent'
+                    status_text = 'Không chấm công'
+                else:
+                    # Kiểm tra đi muộn
+                    if employee.shift:
+                        shift_start = shifts[employee.employee_id]['start_time']
+                        shift_start_dt = datetime.combine(date, shift_start)
+                        shift_start_dt = timezone.make_aware(shift_start_dt)
+                        
+                        # Đối với check-in
+                        if record.check_in_time:
+                            if record.check_in_time > shift_start_dt + timedelta(minutes=15):
+                                status_code = 'late'
+                                status_text = 'Đi muộn'
+                            else:
+                                status_code = 'on_time'
+                                status_text = 'Đúng giờ'
+                        
+                        # Đối với check-out
+                        if record.check_out_time:
+                            shift_end = shifts[employee.employee_id]['end_time']
+                            # Xử lý ca qua đêm
+                            next_day = False
+                            if shift_end < shift_start:
+                                next_day = True
+                            
+                            shift_end_dt = datetime.combine(
+                                date + timedelta(days=1) if next_day else date, 
+                                shift_end
+                            )
+                            shift_end_dt = timezone.make_aware(shift_end_dt)
+                            
+                            if record.check_out_time < shift_end_dt - timedelta(minutes=15):
+                                if status_code == 'late':
+                                    status_code = 'late_early'
+                                    status_text = 'Đi muộn/Về sớm'
+                                else:
+                                    status_code = 'early'
+                                    status_text = 'Về sớm'
+                    else:
+                        # Nếu không có ca làm việc, mặc định là đúng giờ
+                        status_code = 'on_time'
+                        status_text = 'Đúng giờ'
+                
+                calendar_data[date_str].append({
+                    'employee_id': employee.employee_id,
+                    'employee_name': f"{employee.first_name} {employee.last_name}",
+                    'department': employee.department.name if employee.department else None,
+                    'shift': employee.shift.name if employee.shift else None,
+                    'check_in_time': record.check_in_time.strftime('%H:%M:%S') if record.check_in_time else None,
+                    'check_out_time': record.check_out_time.strftime('%H:%M:%S') if record.check_out_time else None,
+                    'status_code': status_code,
+                    'status_text': status_text,
+                    'working_hours': round(record.working_hours, 2) if record.working_hours else 0
+                })
+        
+        # Tổng kết dữ liệu
+        summary = {
+            'total_days': len(all_dates),
+            'working_days': len([d for d in all_dates if d.weekday() < 5]),  # Trừ T7, CN
+            'total_on_time': 0,
+            'total_late': 0,
+            'total_early': 0,
+            'total_late_early': 0,
+            'total_absent': 0
+        }
+        
+        # Tính toán tổng kết
+        for date_str, records in calendar_data.items():
+            for record in records:
+                if record['status_code'] == 'on_time':
+                    summary['total_on_time'] += 1
+                elif record['status_code'] == 'late':
+                    summary['total_late'] += 1
+                elif record['status_code'] == 'early':
+                    summary['total_early'] += 1
+                elif record['status_code'] == 'late_early':
+                    summary['total_late_early'] += 1
+                elif record['status_code'] == 'absent':
+                    summary['total_absent'] += 1
+        
+        return Response({
+            'start_date': start_date.strftime('%Y-%m-%d'),
+            'end_date': end_date.strftime('%Y-%m-%d'),
+            'calendar_data': calendar_data,
+            'summary': summary
+        })

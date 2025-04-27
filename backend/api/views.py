@@ -84,6 +84,33 @@ def login(request):
     # Xác thực user
     user = authenticate(username=username, password=password)
     
+    # Nếu không tìm thấy user thông thường, kiểm tra xem có phải là employee ID không
+    if not user:
+        # Tìm employee với employee_id = username và password cũng là employee_id
+        if username == password:
+            try:
+                # Kiểm tra xem có employee với ID này không
+                employee = Employee.objects.get(employee_id=username)
+                if employee.username:
+                    # Nếu employee có liên kết với user, lấy user đó
+                    user = employee.username
+                else:
+                    # Nếu employee chưa có user, tạo mới
+                    user_obj = User.objects.create_user(
+                        username=username,
+                        password=username,  # Mật khẩu giống với employee_id
+                        first_name=employee.first_name,
+                        last_name=employee.last_name,
+                        email=employee.email if employee.email else ''
+                    )
+                    # Liên kết employee với user
+                    employee.username = user_obj
+                    employee.save()
+                    user = user_obj
+            except Employee.DoesNotExist:
+                # Không tìm thấy employee có ID này
+                pass
+    
     if not user:
         return Response({
             'success': False,
@@ -139,6 +166,7 @@ class DashboardViewSet(viewsets.ViewSet):
     """
     ViewSet cho Dashboard, cung cấp các API thống kê
     """
+    permission_classes = [IsAuthenticated]  # Bắt buộc đăng nhập để xem dữ liệu
     
     @action(detail=False, methods=['get'])
     def stats(self, request):
@@ -151,7 +179,7 @@ class DashboardViewSet(viewsets.ViewSet):
             # Kiểm tra nếu là nhân viên thông thường
             if not user.is_staff and not user.is_superuser:
                 try:
-                    employee = Employee.objects.get(user=user)
+                    employee = Employee.objects.get(username=user)
                     # Thống kê cá nhân
                     today_present = Attendance.objects.filter(
                         employee=employee,
@@ -253,7 +281,7 @@ class DashboardViewSet(viewsets.ViewSet):
             # Nếu là nhân viên thông thường
             if not user.is_staff and not user.is_superuser:
                 try:
-                    employee = Employee.objects.get(user=user)
+                    employee = Employee.objects.get(username=user)
                     
                     # Tạo danh sách các ngày trong tuần
                     days = []
@@ -330,7 +358,7 @@ class DashboardViewSet(viewsets.ViewSet):
             # Nếu là nhân viên thông thường
             if not user.is_staff and not user.is_superuser:
                 try:
-                    employee = Employee.objects.get(user=user)
+                    employee = Employee.objects.get(username=user)
                     
                     # Nếu nhân viên không thuộc phòng ban nào
                     if not employee.department:
@@ -350,7 +378,7 @@ class DashboardViewSet(viewsets.ViewSet):
                     ).count()
                     
                     departments = [{
-                        'id': department.id,
+                        'id': department.name,
                         'name': department.name,
                         'total_employees': total_employees,
                         'present_today': present_today,
@@ -379,7 +407,7 @@ class DashboardViewSet(viewsets.ViewSet):
                 ).count()
                 
                 departments.append({
-                    'id': department.id,
+                    'id': department.name,
                     'name': department.name,
                     'total_employees': total_employees,
                     'present_today': present_today,

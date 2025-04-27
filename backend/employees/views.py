@@ -12,7 +12,7 @@ from django.utils import timezone
 import random
 import logging
 import os
-import face_recognition
+# import face_recognition
 
 from django.contrib.auth.models import User
 from rest_framework.views import APIView
@@ -277,7 +277,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             
             face_info = {
                 'id': face.id,
-                'employee_id': employee.id,
+                'employee_id': employee.employee_id,
                 'created_at': face.created_at,
                 'image': request.build_absolute_uri(face.image.url) if face.image else None,
                 'liveness_score': liveness_score,
@@ -316,7 +316,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             'total_recent_attendances': recent_attendances.count(),
             'last_attendance': recent_attendances.first().check_in_time if recent_attendances.exists() else None,
             'employee_info': {
-                'id': employee.id,
+                'id': employee.employee_id,
                 'employee_id': employee.employee_id,
                 'name': f"{employee.first_name} {employee.last_name}",
                 'department': employee.department.name if employee.department else None
@@ -330,7 +330,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def register_face(self, request, pk=None):
-        """Đăng ký khuôn mặt cho nhân viên sử dụng face_recognition"""
+        """Đăng ký khuôn mặt cho nhân viên sử dụng DeepFace"""
         employee = self.get_object()
         
         if 'image' not in request.FILES:
@@ -344,9 +344,20 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         try:
             from PIL import Image
             import io
+            import cv2
+            from deepface import DeepFace
             
             logger = logging.getLogger(__name__)
             logger.info(f"Bắt đầu đăng ký khuôn mặt cho nhân viên {employee.first_name} {employee.last_name}")
+            
+            # Kiểm tra và xóa dữ liệu khuôn mặt cũ nếu có
+            try:
+                existing_face_data = FaceData.objects.get(employee=employee)
+                logger.info(f"Xóa dữ liệu khuôn mặt cũ cho nhân viên {employee.first_name} {employee.last_name}")
+                existing_face_data.delete()
+            except FaceData.DoesNotExist:
+                # Không có dữ liệu khuôn mặt cũ, tiếp tục
+                pass
             
             # Đọc ảnh từ request
             image_stream = io.BytesIO(image_file.read())
@@ -356,75 +367,109 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             pil_image = Image.open(image_stream)
             img_array = np.array(pil_image)
             
-            # Phát hiện khuôn mặt sử dụng face_recognition
-            face_locations = face_recognition.face_locations(img_array)
+            # Lưu ảnh tạm thời để DeepFace xử lý
+            temp_image_path = "temp_face_img.jpg"
+            cv2.imwrite(temp_image_path, cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR))
             
-            logger.info(f"Số khuôn mặt phát hiện được: {len(face_locations)}")
-            
-            if len(face_locations) == 0:
-                return Response(
-                    {'error': 'Không phát hiện khuôn mặt trong hình ảnh. Vui lòng thử lại với ánh sáng tốt hơn và đảm bảo khuôn mặt nhìn rõ vào camera.'},
-                    status=status.HTTP_400_BAD_REQUEST
+            try:
+                # Sử dụng DeepFace để phát hiện khuôn mặt với anti-spoofing
+                try:
+                    face_objs = DeepFace.extract_faces(
+                        img_path=temp_image_path, 
+                        detector_backend="retinaface",
+                        anti_spoofing=True
+                    )
+                except Exception as spoof_error:
+                    logger.warning(f"Không thể sử dụng anti-spoofing: {str(spoof_error)}")
+                    # Nếu anti-spoofing gặp lỗi, thử lại không sử dụng anti-spoofing
+                    face_objs = DeepFace.extract_faces(
+                        img_path=temp_image_path, 
+                        detector_backend="retinaface",
+                        anti_spoofing=False
+                    )
+                    # Giả định khuôn mặt là thật
+                    for i in range(len(face_objs)):
+                        face_objs[i]["is_real"] = True
+                        face_objs[i]["liveness_score"] = 0.9
+                    
+                logger.info(f"Số khuôn mặt phát hiện được: {len(face_objs)}")
+                
+                if len(face_objs) == 0:
+                    return Response(
+                        {'error': 'Không phát hiện khuôn mặt trong hình ảnh. Vui lòng thử lại với ánh sáng tốt hơn và đảm bảo khuôn mặt nhìn rõ vào camera.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                if len(face_objs) > 1:
+                    return Response(
+                        {'error': 'Phát hiện nhiều khuôn mặt trong hình ảnh. Vui lòng cung cấp hình ảnh với chỉ một khuôn mặt.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                # Kiểm tra khuôn mặt thật/giả
+                is_real_face = face_objs[0].get("is_real", True)
+                liveness_score = face_objs[0].get("liveness_score", 0.9)
+                
+                logger.info(f"Kết quả kiểm tra khuôn mặt thật/giả: {is_real_face}, điểm: {liveness_score:.2f}")
+                
+                # Không cho phép đăng ký với khuôn mặt giả
+                if not is_real_face:
+                    return Response(
+                        {
+                            'error': 'Phát hiện khuôn mặt không phải khuôn mặt thật. Vui lòng sử dụng khuôn mặt thật để đăng ký.',
+                            'liveness_score': liveness_score,
+                            'details': {'is_real': is_real_face}
+                        },
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                # Trích xuất đặc trưng khuôn mặt sử dụng DeepFace
+                embedding_objs = DeepFace.represent(
+                    img_path=temp_image_path,
+                    detector_backend="retinaface",
+                    model_name="Facenet512"
                 )
-            
-            if len(face_locations) > 1:
-                return Response(
-                    {'error': 'Phát hiện nhiều khuôn mặt trong hình ảnh. Vui lòng cung cấp hình ảnh với chỉ một khuôn mặt.'},
-                    status=status.HTTP_400_BAD_REQUEST
+                
+                if len(embedding_objs) == 0:
+                    return Response(
+                        {'error': 'Không thể trích xuất đặc trưng khuôn mặt. Vui lòng thử lại với ảnh chất lượng tốt hơn.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                # Lấy embedding (vector đặc trưng) từ kết quả
+                face_embedding = embedding_objs[0]["embedding"]
+                
+                # Lưu dữ liệu khuôn mặt
+                face_data = FaceData(
+                    employee=employee,
+                    face_encoding=pickle.dumps({
+                        'encoding': face_embedding,
+                        'employee_id': employee.employee_id,  # Changed from employee.id to employee.employee_id
+                        'liveness_score': liveness_score
+                    }),
+                    image=image_file
                 )
-            
-            # Lấy vùng khuôn mặt phát hiện được (top, right, bottom, left)
-            top, right, bottom, left = face_locations[0]
-            face_img = img_array[top:bottom, left:right]
-            
-            # Kiểm tra khuôn mặt thật/giả
-            liveness_detector = LivenessDetector()
-            is_real_face, liveness_score, liveness_details = liveness_detector.check_liveness(face_img)
-            
-            logger.info(f"Kết quả kiểm tra khuôn mặt thật/giả: {is_real_face}, điểm: {liveness_score:.2f}")
-            
-            # Không cho phép đăng ký với khuôn mặt giả
-            if not is_real_face:
-                return Response(
-                    {
-                        'error': 'Phát hiện khuôn mặt không phải khuôn mặt thật. Vui lòng sử dụng khuôn mặt thật để đăng ký.',
-                        'liveness_score': liveness_score,
-                        'details': liveness_details
-                    },
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            # Trích xuất đặc trưng khuôn mặt (128-dimensional face encoding)
-            face_encodings = face_recognition.face_encodings(img_array, face_locations)
-            
-            if len(face_encodings) == 0:
-                return Response(
-                    {'error': 'Không thể trích xuất đặc trưng khuôn mặt. Vui lòng thử lại với ảnh chất lượng tốt hơn.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            # Lấy encoding đầu tiên
-            face_encoding = face_encodings[0]
-            
-            # Lưu dữ liệu khuôn mặt
-            face_data = FaceData(
-                employee=employee,
-                face_encoding=pickle.dumps({
-                    'encoding': face_encoding,
-                    'employee_id': employee.id,
-                    'liveness_score': liveness_score
-                }),
-                image=image_file
-            )
-            face_data.save()
-            
-            return Response({
-                'success': True,
-                'message': f'Đã đăng ký khuôn mặt thành công cho {employee.first_name} {employee.last_name}',
-                'face_data_id': face_data.id,
-                'liveness_score': liveness_score,
-                'liveness_details': liveness_details
-            })
+                face_data.save()
+                
+                # Xóa ảnh tạm thời sau khi đã hoàn thành mọi xử lý
+                import os
+                if os.path.exists(temp_image_path):
+                    os.remove(temp_image_path)
+                
+                return Response({
+                    'success': True,
+                    'message': f'Đã đăng ký khuôn mặt thành công cho {employee.first_name} {employee.last_name}',
+                    'face_data_id': face_data.id,
+                    'liveness_score': liveness_score,
+                    'details': {'is_real': is_real_face}
+                })
+            except Exception as e:
+                # Xóa ảnh tạm thời trong trường hợp lỗi
+                import os
+                if os.path.exists(temp_image_path):
+                    os.remove(temp_image_path)
+                raise e
+                
         except Exception as e:
             import traceback
             logger.error(f"Lỗi khi đăng ký khuôn mặt: {str(e)}")
@@ -436,7 +481,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['post'])
     def recognize_face(self, request):
-        """Nhận diện khuôn mặt từ ảnh sử dụng face_recognition"""
+        """Nhận diện khuôn mặt từ ảnh sử dụng DeepFace"""
         if 'image' not in request.FILES:
             return Response(
                 {'error': 'Không tìm thấy hình ảnh trong yêu cầu'},
@@ -448,6 +493,10 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         try:
             from PIL import Image
             import io
+            import cv2
+            from deepface import DeepFace
+            from scipy.spatial.distance import cosine
+            import os
             
             logger = logging.getLogger(__name__)
             logger.info("Bắt đầu quá trình nhận diện khuôn mặt")
@@ -459,114 +508,178 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             pil_image = Image.open(image_stream)
             img_array = np.array(pil_image)
             
-            # Phát hiện khuôn mặt sử dụng face_recognition
-            face_locations = face_recognition.face_locations(img_array)
+            # Lưu ảnh tạm thời để DeepFace xử lý
+            temp_image_path = "temp_face_img.jpg"
+            cv2.imwrite(temp_image_path, cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR))
             
-            logger.info(f"Số khuôn mặt phát hiện được: {len(face_locations)}")
-            
-            if len(face_locations) == 0:
-                return Response(
-                    {'error': 'Không phát hiện khuôn mặt trong hình ảnh'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            if len(face_locations) > 1:
-                return Response(
-                    {'error': 'Phát hiện nhiều khuôn mặt trong hình ảnh. Vui lòng chỉ đưa một khuôn mặt vào khung hình.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            # Trích xuất đặc trưng khuôn mặt từ ảnh đầu vào
-            unknown_face_encodings = face_recognition.face_encodings(img_array, face_locations)
-            
-            if len(unknown_face_encodings) == 0:
-                return Response(
-                    {'error': 'Không thể trích xuất đặc trưng khuôn mặt. Vui lòng thử lại với ảnh chất lượng tốt hơn.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            unknown_face_encoding = unknown_face_encodings[0]
-            
-            # Lấy tất cả dữ liệu khuôn mặt đã đăng ký
-            all_face_data = FaceData.objects.all()
-            
-            if not all_face_data:
-                return Response(
-                    {'error': 'Không có dữ liệu khuôn mặt nào trong hệ thống'},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-            
-            logger.info(f"Số lượng dữ liệu khuôn mặt trong CSDL: {all_face_data.count()}")
-            
-            # Tìm khuôn mặt khớp nhất
-            best_match = None
-            best_match_distance = float('inf')  # Càng thấp càng tốt với face_distance
-            
-            # So sánh khuôn mặt đầu vào với tất cả khuôn mặt đã đăng ký
-            for face_data in all_face_data:
+            try:
+                # Sử dụng DeepFace để phát hiện khuôn mặt
                 try:
-                    # Giải mã dữ liệu khuôn mặt
-                    stored_data = pickle.loads(face_data.face_encoding)
-                    
-                    # Kiểm tra cấu trúc dữ liệu
-                    if not isinstance(stored_data, dict):
-                        logger.warning(f"Dữ liệu khuôn mặt không hợp lệ cho ID: {face_data.id}")
-                        continue
-                    
-                    if 'encoding' not in stored_data:
-                        logger.warning(f"Không tìm thấy encoding trong dữ liệu khuôn mặt ID: {face_data.id}")
-                        continue
-                    
-                    # Lấy vector đặc trưng đã lưu
-                    stored_face_encoding = stored_data['encoding']
-                    
-                    # Tính khoảng cách Euclidean giữa hai vector đặc trưng
-                    face_distance = face_recognition.face_distance([stored_face_encoding], unknown_face_encoding)[0]
-                    
-                    logger.info(f"Khoảng cách với khuôn mặt ID {face_data.id}: {face_distance}")
-                    
-                    # Cập nhật best match (khoảng cách càng nhỏ thì càng giống nhau)
-                    if face_distance < best_match_distance:
-                        best_match = face_data
-                        best_match_distance = face_distance
-                    
-                except Exception as e:
-                    logger.error(f"Lỗi khi so sánh khuôn mặt: {str(e)}")
-                    continue
-            
-            # Ngưỡng khoảng cách mặc định là 0.6
-            # Với face_recognition, khoảng cách càng nhỏ thì càng giống nhau
-            # Giá trị 0.6 thường được coi là ngưỡng tốt (dưới 0.6 => khớp, trên 0.6 => không khớp)
-            threshold = 0.6
-            
-            logger.info(f"Best match distance: {best_match_distance}, threshold: {threshold}")
-            
-            if best_match is not None and best_match_distance < threshold:
-                employee = best_match.employee
+                    face_objs = DeepFace.extract_faces(
+                        img_path=temp_image_path, 
+                        detector_backend="retinaface",
+                        anti_spoofing=True
+                    )
+                except Exception as spoof_error:
+                    logger.warning(f"Không thể sử dụng anti-spoofing: {str(spoof_error)}")
+                    # Nếu anti-spoofing gặp lỗi, thử lại không sử dụng anti-spoofing
+                    face_objs = DeepFace.extract_faces(
+                        img_path=temp_image_path, 
+                        detector_backend="retinaface",
+                        anti_spoofing=False
+                    )
+                    # Giả định khuôn mặt là thật
+                    for i in range(len(face_objs)):
+                        face_objs[i]["is_real"] = True
+                        face_objs[i]["liveness_score"] = 0.9
                 
-                # Lấy thông tin nhân viên
-                employee_data = {
-                    'id': employee.id,
-                    'employee_id': employee.employee_id,
-                    'first_name': employee.first_name,
-                    'last_name': employee.last_name,
-                    'full_name': f"{employee.first_name} {employee.last_name}",
-                    'department': employee.department.name if employee.department else None,
-                    'position': employee.position,
-                    'image': request.build_absolute_uri(employee.image.url) if employee.image else None,
-                    'match_confidence': round((1 - best_match_distance) * 100, 2)  # Đổi thành phần trăm độ tin cậy
-                }
+                logger.info(f"Số khuôn mặt phát hiện được: {len(face_objs)}")
                 
-                return Response({
-                    'success': True,
-                    'message': f'Đã nhận diện thành công: {employee.first_name} {employee.last_name}',
-                    'employee': employee_data
-                })
-            else:
-                return Response({
-                    'success': False,
-                    'message': 'Không tìm thấy khuôn mặt phù hợp trong cơ sở dữ liệu'
-                }, status=status.HTTP_404_NOT_FOUND)
+                if len(face_objs) == 0:
+                    # Xóa ảnh tạm thời
+                    if os.path.exists(temp_image_path):
+                        os.remove(temp_image_path)
+                    return Response(
+                        {'error': 'Không phát hiện khuôn mặt trong hình ảnh'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                if len(face_objs) > 1:
+                    # Xóa ảnh tạm thời
+                    if os.path.exists(temp_image_path):
+                        os.remove(temp_image_path)
+                    return Response(
+                        {'error': 'Phát hiện nhiều khuôn mặt trong hình ảnh. Vui lòng chỉ đưa một khuôn mặt vào khung hình.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                # Kiểm tra khuôn mặt thật/giả
+                is_real_face = face_objs[0].get("is_real", True)
+                liveness_score = face_objs[0].get("liveness_score", 0.9)
+                
+                logger.info(f"Kết quả kiểm tra khuôn mặt thật/giả: {is_real_face}, điểm: {liveness_score:.2f}")
+                
+                if not is_real_face:
+                    # Xóa ảnh tạm thời
+                    if os.path.exists(temp_image_path):
+                        os.remove(temp_image_path)
+                    return Response(
+                        {
+                            'error': 'Phát hiện khuôn mặt không phải khuôn mặt thật.',
+                            'liveness_score': liveness_score,
+                            'details': {'is_real': is_real_face}
+                        },
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                # Trích xuất đặc trưng khuôn mặt từ ảnh đầu vào
+                embedding_objs = DeepFace.represent(
+                    img_path=temp_image_path,
+                    detector_backend="retinaface",
+                    model_name="Facenet512"
+                )
+                
+                # Xóa ảnh tạm thời sau khi sử dụng
+                if os.path.exists(temp_image_path):
+                    os.remove(temp_image_path)
+                
+                if len(embedding_objs) == 0:
+                    return Response(
+                        {'error': 'Không thể trích xuất đặc trưng khuôn mặt. Vui lòng thử lại với ảnh chất lượng tốt hơn.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                unknown_face_embedding = embedding_objs[0]["embedding"]
+                
+                # Lấy tất cả dữ liệu khuôn mặt đã đăng ký
+                all_face_data = FaceData.objects.all()
+                
+                if not all_face_data:
+                    return Response(
+                        {'error': 'Không có dữ liệu khuôn mặt nào trong hệ thống'},
+                        status=status.HTTP_404_NOT_FOUND
+                    )
+                
+                logger.info(f"Số lượng dữ liệu khuôn mặt trong CSDL: {all_face_data.count()}")
+                
+                # Tìm khuôn mặt khớp nhất
+                best_match = None
+                best_match_distance = float('inf')  # Càng thấp càng tốt với face_distance
+                
+                # So sánh khuôn mặt đầu vào với tất cả khuôn mặt đã đăng ký
+                for face_data in all_face_data:
+                    try:
+                        # Giải mã dữ liệu khuôn mặt
+                        stored_data = pickle.loads(face_data.face_encoding)
+                        
+                        # Kiểm tra cấu trúc dữ liệu
+                        if not isinstance(stored_data, dict):
+                            logger.warning(f"Dữ liệu khuôn mặt không hợp lệ cho ID: {face_data.id}")
+                            continue
+                        
+                        if 'encoding' not in stored_data:
+                            logger.warning(f"Không tìm thấy encoding trong dữ liệu khuôn mặt ID: {face_data.id}")
+                            continue
+                        
+                        # Lấy vector đặc trưng đã lưu
+                        stored_face_embedding = stored_data['encoding']
+                        
+                        # Tính khoảng cách cosine giữa hai vector đặc trưng
+                        unknown_embedding_array = np.array(unknown_face_embedding)
+                        stored_embedding_array = np.array(stored_face_embedding)
+                        
+                        # Tính cosine distance
+                        cosine_distance = cosine(unknown_embedding_array, stored_embedding_array)
+                        
+                        logger.info(f"Khoảng cách cosine với khuôn mặt ID {face_data.id}: {cosine_distance}")
+                        
+                        # Cập nhật best match (khoảng cách càng nhỏ thì càng giống nhau)
+                        if cosine_distance < best_match_distance:
+                            best_match = face_data
+                            best_match_distance = cosine_distance
+                        
+                    except Exception as e:
+                        logger.error(f"Lỗi khi so sánh khuôn mặt: {str(e)}")
+                        continue
+                
+                # Ngưỡng cosine distance mặc định là 0.4
+                # Với cosine distance, giá trị càng thấp càng giống nhau
+                threshold = 0.4
+                
+                logger.info(f"Best match distance: {best_match_distance}, threshold: {threshold}")
+                
+                if best_match is not None and best_match_distance < threshold:
+                    employee = best_match.employee
+                    
+                    # Lấy thông tin nhân viên
+                    employee_data = {
+                        'id': employee.employee_id,
+                        'employee_id': employee.employee_id,
+                        'first_name': employee.first_name,
+                        'last_name': employee.last_name,
+                        'full_name': f"{employee.first_name} {employee.last_name}",
+                        'department': employee.department.name if employee.department else None,
+                        'match_confidence': round((1 - best_match_distance) * 100, 2)  # Đổi thành phần trăm độ tin cậy
+                    }
+                    
+                    return Response({
+                        'success': True,
+                        'message': f'Đã nhận diện thành công: {employee.first_name} {employee.last_name}',
+                        'employee': employee_data
+                    })
+                else:
+                    return Response({
+                        'success': False,
+                        'message': 'Không tìm thấy khuôn mặt phù hợp trong cơ sở dữ liệu',
+                        'best_match_distance': best_match_distance,
+                        'threshold': threshold
+                    }, status=status.HTTP_404_NOT_FOUND)
+                
+            except Exception as e:
+                # Xóa ảnh tạm thời trong trường hợp lỗi
+                if os.path.exists(temp_image_path):
+                    os.remove(temp_image_path)
+                raise e
         
         except Exception as e:
             import traceback

@@ -61,6 +61,8 @@ export const employeeApi = {
       },
     });
   },
+  // API lấy thông tin nhân viên hiện tại đang đăng nhập
+  getCurrentEmployee: () => api.get('/employees/current/'),
 };
 
 // API cho phòng ban
@@ -101,6 +103,16 @@ export const attendanceApi = {
   getToday: () => api.get('/attendance/today/'),
   getStats: () => api.get('/attendance/stats/'),
   getWeeklyStats: () => api.get('/attendance/weekly_stats/'),
+  // Lấy dữ liệu điểm danh dạng lịch
+  getCalendarReport: (startDate, endDate, employeeId) => {
+    const params = { start_date: startDate, end_date: endDate };
+    if (employeeId) params.employee_id = employeeId;
+    return api.get('/attendance/calendar_report/', { params });
+  },
+  // Lấy lịch sử điểm danh gần đây của nhân viên
+  getRecentAttendance: (limit = 10) => api.get('/attendance/recent/', { params: { limit } }),
+  // Lấy thông tin điểm danh hôm nay của nhân viên
+  getTodayAttendance: () => api.get('/attendance/employee_today/'),
 };
 
 // API cho dashboard
@@ -108,6 +120,12 @@ export const dashboardApi = {
   getStats: () => api.get('/dashboard/stats/'),
   getAttendanceSummary: () => api.get('/dashboard/attendance_summary/'),
   getDepartmentSummary: () => api.get('/dashboard/department_summary/'),
+  // Dashboard cá nhân hóa cho nhân viên
+  getEmployeeStats: () => api.get('/dashboard/employee_stats/'),
+  // Lấy dữ liệu điểm danh tùy chỉnh theo khoảng thời gian
+  getCustomStats: (startDate, endDate) => api.get('/dashboard/custom_stats/', { 
+    params: { start_date: startDate, end_date: endDate } 
+  }),
 };
 
 // API cho thông báo

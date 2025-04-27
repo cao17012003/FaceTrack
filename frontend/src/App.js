@@ -6,6 +6,7 @@ import { SnackbarProvider } from 'notistack';
 import RegisterPage from './pages/RegisterPage';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
+import EmployeeDashboardPage from './pages/EmployeeDashboardPage';
 import CheckInPage from './pages/CheckInPage';
 import AttendanceReportPage from './pages/AttendanceReportPage';
 import NotificationsPage from './pages/NotificationsPage';
@@ -15,7 +16,7 @@ import ShiftsPage from './pages/ShiftsPage';
 import CalendarPage from './pages/CalendarPage';
 import AdminPage from './pages/AdminPage';
 import Layout from './components/Layout';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 
@@ -37,6 +38,27 @@ const AdminRoute = ({ children }) => {
     return <Navigate to="/" />;
   }
   return children;
+};
+
+// Dashboard Route - Hiển thị dashboard dựa vào vai trò người dùng - phải ở trong functional component
+const DashboardSelector = () => {
+  const { isAdmin, isEmployee, currentUser } = useAuth();
+  
+  console.log("DashboardSelector - currentUser:", currentUser);
+  console.log("DashboardSelector - isAdmin():", isAdmin());
+  console.log("DashboardSelector - isEmployee():", isEmployee());
+  
+  if (isAdmin()) {
+    console.log("Rendering AdminDashboard");
+    return <DashboardPage />;
+  } else if (isEmployee()) {
+    console.log("Rendering EmployeeDashboard");
+    return <EmployeeDashboardPage />;
+  } else {
+    // Fallback nếu không xác định được vai trò
+    console.log("Rendering Fallback Dashboard");
+    return <DashboardPage />;
+  }
 };
 
 function App() {
@@ -90,7 +112,7 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <Layout>
-                        <DashboardPage />
+                        <DashboardSelector />
                       </Layout>
                     </ProtectedRoute>
                   } 

@@ -5,7 +5,6 @@ import {
   Pie, 
   Cell, 
   ResponsiveContainer, 
-  Legend, 
   Tooltip 
 } from 'recharts';
 
@@ -44,54 +43,20 @@ const CustomTooltip = ({ active, payload }) => {
   return null;
 };
 
-// Custom legend component
-const CustomLegend = ({ payload }) => {
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', mt: 2 }}>
-      {payload.map((entry, index) => (
-        <Box 
-          key={`legend-${index}`} 
-          sx={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            mb: 1,
-          }}
-        >
-          <Box 
-            sx={{ 
-              width: 10, 
-              height: 10, 
-              borderRadius: '50%', 
-              backgroundColor: entry.color,
-              mr: 1 
-            }} 
-          />
-          <Typography variant="body2" color="textSecondary">
-            {entry.value} - {entry.payload.percentage}%
-          </Typography>
-        </Box>
-      ))}
-    </Box>
-  );
-};
-
 const DepartmentChart = ({ departmentData, isLoading = false }) => {
   const theme = useTheme();
   
-  // Fallback empty data if no data is provided
-  const fallbackData = [];
-  
-  // Use provided data or fallback data
-  const data = departmentData || fallbackData;
+  // Fallback to mock data or empty array if no data is provided
+  const data = Array.isArray(departmentData) ? departmentData : mockData;
   
   // Calculate total value for percentage
-  const total = data.reduce((sum, item) => sum + item.value, 0);
+  const total = Array.isArray(data) ? data.reduce((sum, item) => sum + item.value, 0) : 0;
   
   // Add percentage to data
-  const enrichedData = data.map(item => ({
+  const enrichedData = Array.isArray(data) ? data.map(item => ({
     ...item,
     percentage: total > 0 ? Math.round((item.value / total) * 100) : 0
-  }));
+  })) : [];
 
   return (
     <Card sx={{ height: '100%', borderRadius: 2 }}>
