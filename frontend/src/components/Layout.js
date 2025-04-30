@@ -48,10 +48,14 @@ import {
   Edit as EditIcon,
   Visibility as VisibilityIcon,
   VisibilityOff as VisibilityOffIcon,
+  SupportAgent as SupportIcon
 } from '@mui/icons-material';
 import { useTranslation } from '../translations';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { userApi } from '../services/api';
+import axios from 'axios';
+import { AUTH_TOKEN_KEY } from '../config';
 
 const drawerWidth = 240;
 
@@ -60,7 +64,7 @@ function Layout({ children }) {
   const [userMenuAnchor, setUserMenuAnchor] = React.useState(null);
   const [openEditDialog, setOpenEditDialog] = React.useState(false);
   const [userData, setUserData] = React.useState({
-    username: 'admin',
+    username: '',
     fullName: '',
     email: '',
     oldPassword: '',
@@ -80,12 +84,12 @@ function Layout({ children }) {
   React.useEffect(() => {
     console.log('Current user in Layout:', currentUser);
     // Initialize user data from currentUser if available
-    if (currentUser) {
+    if (currentUser && currentUser.user) {
       setUserData(prev => ({
         ...prev,
-        username: currentUser.username || 'admin',
-        fullName: currentUser.fullName || '',
-        email: currentUser.email || '',
+        username: currentUser.user.username || '',
+        fullName: `${currentUser.user.first_name || ''} ${currentUser.user.last_name || ''}`.trim(),
+        email: currentUser.user.email || '',
       }));
     }
   }, [currentUser]);
@@ -102,6 +106,7 @@ function Layout({ children }) {
       { text: t('menu.checkin'), path: '/check-in', icon: <CameraIcon />, allowedRoles: ['admin', 'employee'] },
       { text: t('menu.reports'), path: '/attendance-reports', icon: <AccessTimeIcon />, allowedRoles: ['admin', 'employee'] },
       { text: t('menu.notifications'), path: '/notifications', icon: <NotificationsIcon />, allowedRoles: ['admin', 'employee'] },
+      { text: t('menu.support'), path: '/support', icon: <SupportIcon />, allowedRoles: ['admin', 'employee'] },
     ];
     
     // Menu items only for admin
@@ -197,20 +202,42 @@ function Layout({ children }) {
   const handleSubmitUserEdit = async () => {
     if (validateForm()) {
       try {
-        // Here you would make an API call to update the user information
-        console.log('Updating user with data:', userData);
+        let updatedUser = false;
         
-        // Mock success for now
-        alert('Thông tin tài khoản đã được cập nhật!');
-        handleCloseEditDialog();
+        // Nếu có thay đổi mật khẩu
+        if (userData.newPassword && userData.oldPassword) {
+          try {
+            const passwordResponse = await userApi.changePassword(
+              userData.oldPassword,
+              userData.newPassword
+            );
+            
+            if (passwordResponse.data && passwordResponse.data.success) {
+              handleCloseEditDialog();
+              alert(passwordResponse.data.message || 'Mật khẩu đã được cập nhật thành công! Vui lòng đăng nhập lại.');
+              
+              // Đăng xuất và chuyển hướng người dùng tới trang đăng nhập
+              logout();
+              navigate('/login');
+              return; // Thoát khỏi hàm sau khi đã đăng xuất
+            }
+          } catch (error) {
+            const errorMessage = error.response?.data?.error || 'Lỗi khi đổi mật khẩu';
+            alert(errorMessage);
+            console.error('Error updating password:', error);
+            return; // Dừng quá trình nếu đổi mật khẩu bị lỗi
+          }
+        }
         
-        // In a real app, you would call your API here
-        // const response = await userApi.update(userData);
-        // if (response.success) {
-        //   // Update the auth context with new user information
-        //   // updateCurrentUser(response.data);
-        //   handleCloseEditDialog();
-        // }
+        // Xử lý cập nhật thông tin người dùng nếu có
+        // TODO: Thêm API để cập nhật thông tin người dùng
+        
+        // Nếu mọi thứ thành công, đóng dialog
+        if (updatedUser) {
+          handleCloseEditDialog();
+        } else {
+          alert('Không có thông tin nào được cập nhật');
+        }
       } catch (error) {
         console.error('Error updating user:', error);
         alert('Đã có lỗi xảy ra khi cập nhật thông tin.');
@@ -292,7 +319,10 @@ function Layout({ children }) {
                     aria-haspopup="true"
                   >
                     <Avatar sx={{ bgcolor: isAdmin() ? 'primary.main' : 'secondary.main' }}>
-                      {currentUser.fullName ? currentUser.fullName.charAt(0) : 'U'}
+                      {currentUser && currentUser.user ? 
+                        (currentUser.user.first_name ? currentUser.user.first_name.charAt(0) : 
+                         currentUser.user.username ? currentUser.user.username.charAt(0).toUpperCase() : 'U')
+                        : 'U'}
                     </Avatar>
                   </IconButton>
                 </Tooltip>
@@ -314,9 +344,14 @@ function Layout({ children }) {
                     <ListItemIcon>
                       <AccountIcon fontSize="small" />
                     </ListItemIcon>
-                    <Typography variant="body2">
-                      {"admin"}
-                    </Typography>
+                    <Box>
+                      <Typography variant="body2">
+                        {currentUser?.user?.username || 'User'}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {isAdmin() ? 'Quản trị viên' : 'Nhân viên'}
+                      </Typography>
+                    </Box>
                   </MenuItem>
                   <MenuItem onClick={handleOpenEditDialog}>
                     <ListItemIcon>

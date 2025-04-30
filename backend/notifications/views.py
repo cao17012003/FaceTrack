@@ -4,7 +4,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
 import logging
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from datetime import timedelta
 
 from .models import Notification
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class NotificationViewSet(viewsets.ModelViewSet):
     queryset = Notification.objects.all()
     serializer_class = NotificationSerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
     def get_serializer_class(self):
         if self.action == 'create':
@@ -24,60 +24,130 @@ class NotificationViewSet(viewsets.ModelViewSet):
         return NotificationSerializer
     
     def get_queryset(self):
-        # Trả về tất cả thông báo trong môi trường development
-        return Notification.objects.all()
-        
-        # Code cũ để tham khảo khi cần phân quyền
-        # user = self.request.user
-        # if not user or not user.is_authenticated:
-        #     return Notification.objects.all()
-        #     
-        # try:
-        #     user_profile = UserProfile.objects.get(user=user)
-        #     if user_profile.is_admin or user_profile.is_user:
-        #         return Notification.objects.all()
-        #     try:
-        #         employee = Employee.objects.get(user=user)
-        #         return Notification.objects.filter(employee=employee)
-        #     except Employee.DoesNotExist:
-        #         return Notification.objects.none()
-        # except UserProfile.DoesNotExist:
-        #     return Notification.objects.all()
+        # Kiểm tra nếu có employee_id trong query params
+        employee_id = self.request.query_params.get('employee_id')
+        if employee_id:
+            try:
+                employee = Employee.objects.filter(employee_id=employee_id).first()
+                if employee:
+                    return Notification.objects.filter(employee=employee)
+                else:
+                    return Notification.objects.none()
+            except Exception as e:
+                logger.error(f"Lỗi khi lọc thông báo theo employee_id: {str(e)}")
+                return Notification.objects.none()
+                
+        # Nếu không có employee_id, kiểm tra user đang đăng nhập
+        user = self.request.user
+        if not user or not user.is_authenticated:
+            return Notification.objects.none()
+            
+        try:
+            user_profile = UserProfile.objects.get(user=user)
+            if user_profile.is_admin:
+                # Admin có thể xem tất cả thông báo
+                return Notification.objects.all()
+            
+            # Tìm employee tương ứng với user
+            try:
+                employee = Employee.objects.get(username=user)
+                return Notification.objects.filter(employee=employee)
+            except Employee.DoesNotExist:
+                return Notification.objects.none()
+        except UserProfile.DoesNotExist:
+            return Notification.objects.none()
     
     def create(self, request, *args, **kwargs):
         # Chỉ admin mới có thể tạo thông báo mới
-        user_profile = UserProfile.objects.get(user=request.user)
-        if not user_profile.is_admin:
+        try:
+            user_profile = UserProfile.objects.get(user=request.user)
+            if not user_profile.is_admin:
+                return Response(
+                    {'error': 'Bạn không có quyền tạo thông báo mới'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            return super().create(request, *args, **kwargs)
+        except UserProfile.DoesNotExist:
             return Response(
-                {'error': 'Bạn không có quyền tạo thông báo mới'},
-                status=status.HTTP_403_FORBIDDEN
+                {'error': 'Không tìm thấy thông tin người dùng'},
+                status=status.HTTP_404_NOT_FOUND
             )
-        return super().create(request, *args, **kwargs)
     
     def update(self, request, *args, **kwargs):
         # Chỉ admin mới có thể cập nhật thông báo
-        user_profile = UserProfile.objects.get(user=request.user)
-        if not user_profile.is_admin:
+        try:
+            user_profile = UserProfile.objects.get(user=request.user)
+            if not user_profile.is_admin:
+                return Response(
+                    {'error': 'Bạn không có quyền cập nhật thông báo'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            return super().update(request, *args, **kwargs)
+        except UserProfile.DoesNotExist:
             return Response(
-                {'error': 'Bạn không có quyền cập nhật thông báo'},
-                status=status.HTTP_403_FORBIDDEN
+                {'error': 'Không tìm thấy thông tin người dùng'},
+                status=status.HTTP_404_NOT_FOUND
             )
-        return super().update(request, *args, **kwargs)
     
     def destroy(self, request, *args, **kwargs):
         # Chỉ admin mới có thể xóa thông báo
-        user_profile = UserProfile.objects.get(user=request.user)
-        if not user_profile.is_admin:
+        try:
+            user_profile = UserProfile.objects.get(user=request.user)
+            if not user_profile.is_admin:
+                return Response(
+                    {'error': 'Bạn không có quyền xóa thông báo'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            # Kiểm tra xem thông báo có thuộc người dùng không (nếu không phải admin)
+            notification = self.get_object()
+            if not user_profile.is_admin:
+                try:
+                    employee = Employee.objects.get(username=request.user)
+                    if notification.employee != employee:
+                        return Response(
+                            {'error': 'Bạn không có quyền xóa thông báo của người khác'},
+                            status=status.HTTP_403_FORBIDDEN
+                        )
+                except Employee.DoesNotExist:
+                    return Response(
+                        {'error': 'Không tìm thấy thông tin nhân viên'},
+                        status=status.HTTP_404_NOT_FOUND
+                    )
+            return super().destroy(request, *args, **kwargs)
+        except UserProfile.DoesNotExist:
             return Response(
-                {'error': 'Bạn không có quyền xóa thông báo'},
-                status=status.HTTP_403_FORBIDDEN
+                {'error': 'Không tìm thấy thông tin người dùng'},
+                status=status.HTTP_404_NOT_FOUND
             )
-        return super().destroy(request, *args, **kwargs)
     
     @action(detail=True, methods=['post'])
     def mark_as_read(self, request, pk=None):
         """Đánh dấu thông báo là đã đọc"""
         notification = self.get_object()
+        
+        # Kiểm tra quyền
+        try:
+            user_profile = UserProfile.objects.get(user=request.user)
+            if not user_profile.is_admin:
+                # Nếu không phải admin, chỉ được đánh dấu thông báo của mình
+                try:
+                    employee = Employee.objects.get(username=request.user)
+                    if notification.employee != employee:
+                        return Response(
+                            {'error': 'Bạn không có quyền đánh dấu thông báo của người khác'},
+                            status=status.HTTP_403_FORBIDDEN
+                        )
+                except Employee.DoesNotExist:
+                    return Response(
+                        {'error': 'Không tìm thấy thông tin nhân viên'},
+                        status=status.HTTP_404_NOT_FOUND
+                    )
+        except UserProfile.DoesNotExist:
+            return Response(
+                {'error': 'Không tìm thấy thông tin người dùng'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
         notification.is_read = True
         notification.save()
         
@@ -95,12 +165,30 @@ class NotificationViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         try:
+            # Kiểm tra quyền
+            user_profile = UserProfile.objects.get(user=request.user)
+            
+            # Tìm employee
             employee = Employee.objects.filter(employee_id=employee_id).first()
             if not employee:
                 return Response({
                     'error': f'Không tìm thấy nhân viên với employee_id={employee_id}'
                 }, status=status.HTTP_404_NOT_FOUND)
             
+            # Nếu không phải admin và không phải thao tác trên thông báo của chính mình
+            if not user_profile.is_admin:
+                try:
+                    user_employee = Employee.objects.get(username=request.user)
+                    if user_employee.employee_id != employee_id:
+                        return Response({
+                            'error': 'Bạn không có quyền đánh dấu thông báo của người khác'
+                        }, status=status.HTTP_403_FORBIDDEN)
+                except Employee.DoesNotExist:
+                    return Response({
+                        'error': 'Không tìm thấy thông tin nhân viên'
+                    }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Đánh dấu tất cả thông báo là đã đọc
             notifications = Notification.objects.filter(employee=employee, is_read=False)
             count = notifications.count()
             
@@ -111,6 +199,10 @@ class NotificationViewSet(viewsets.ModelViewSet):
                 'message': f'Đã đánh dấu {count} thông báo là đã đọc',
                 'count': count
             })
+        except UserProfile.DoesNotExist:
+            return Response({
+                'error': 'Không tìm thấy thông tin người dùng'
+            }, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.error(f"Lỗi khi đánh dấu tất cả thông báo là đã đọc: {str(e)}")
             return Response({
@@ -128,18 +220,40 @@ class NotificationViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         try:
+            # Kiểm tra quyền
+            user_profile = UserProfile.objects.get(user=request.user)
+            
+            # Tìm employee
             employee = Employee.objects.filter(employee_id=employee_id).first()
             if not employee:
                 return Response({
                     'error': f'Không tìm thấy nhân viên với employee_id={employee_id}'
                 }, status=status.HTTP_404_NOT_FOUND)
             
+            # Nếu không phải admin và không phải thao tác trên thông báo của chính mình
+            if not user_profile.is_admin:
+                try:
+                    user_employee = Employee.objects.get(username=request.user)
+                    if user_employee.employee_id != employee_id:
+                        return Response({
+                            'error': 'Bạn không có quyền xem thông báo của người khác'
+                        }, status=status.HTTP_403_FORBIDDEN)
+                except Employee.DoesNotExist:
+                    return Response({
+                        'error': 'Không tìm thấy thông tin nhân viên'
+                    }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Lấy số lượng thông báo chưa đọc
             count = Notification.objects.filter(employee=employee, is_read=False).count()
             
             return Response({
                 'employee_id': employee_id,
                 'unread_count': count
             })
+        except UserProfile.DoesNotExist:
+            return Response({
+                'error': 'Không tìm thấy thông tin người dùng'
+            }, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             logger.error(f"Lỗi khi lấy số lượng thông báo chưa đọc: {str(e)}")
             return Response({

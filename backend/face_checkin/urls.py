@@ -27,6 +27,7 @@ urlpatterns = [
     path('api/', include('employees.urls')),
     path('api/', include('attendance.urls')),
     path('api/', include('notifications.urls')),
+    path('api/', include('support.urls')),
     
     # Đường dẫn phương tiện
     path('media/<path:path>', serve, {'document_root': settings.MEDIA_ROOT}),

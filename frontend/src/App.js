@@ -19,6 +19,9 @@ import Layout from './components/Layout';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { LanguageProvider } from './contexts/LanguageContext';
+import HomePage from './pages/HomePage';
+import EmployeeDetailPage from './pages/EmployeeDetailPage';
+import SupportPage from './pages/SupportPage';
 
 // Route bảo vệ cho người dùng đã đăng nhập
 const ProtectedRoute = ({ children }) => {
@@ -112,27 +115,27 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <Layout>
-                        <DashboardSelector />
+                        <HomePage />
                       </Layout>
                     </ProtectedRoute>
                   } 
                 />
                 <Route 
-                  path="/check-in" 
+                  path="/employees" 
                   element={
-                    <ProtectedRoute>
+                    <ProtectedRoute roles={['admin']}>
                       <Layout>
-                        <CheckInPage />
+                        <EmployeesPage />
                       </Layout>
                     </ProtectedRoute>
                   } 
                 />
                 <Route 
-                  path="/attendance-reports" 
+                  path="/employees/:id" 
                   element={
-                    <ProtectedRoute>
+                    <ProtectedRoute roles={['admin']}>
                       <Layout>
-                        <AttendanceReportPage />
+                        <EmployeeDetailPage />
                       </Layout>
                     </ProtectedRoute>
                   } 
@@ -143,16 +146,6 @@ function App() {
                     <ProtectedRoute>
                       <Layout>
                         <NotificationsPage />
-                      </Layout>
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/employees" 
-                  element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <EmployeesPage />
                       </Layout>
                     </ProtectedRoute>
                   } 
@@ -187,7 +180,27 @@ function App() {
                     </ProtectedRoute>
                   } 
                 />
-                <Route path="*" element={<Navigate to="/" />} />
+                <Route 
+                  path="/support" 
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <SupportPage />
+                      </Layout>
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/check-in" 
+                  element={
+                    <ProtectedRoute roles={['user']}>
+                      <Layout>
+                        <CheckInPage />
+                      </Layout>
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Router>
           </SnackbarProvider>

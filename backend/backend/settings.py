@@ -8,11 +8,12 @@ INSTALLED_APPS = [
     
     # Cài đặt của bên thứ ba
     'rest_framework',
+    'rest_framework.authtoken',
     'corsheaders',
     
     # Ứng dụng tự tạo
     'employees',
     'attendance',
-    'authentication',
     'notifications',
+    'support',
 ] 

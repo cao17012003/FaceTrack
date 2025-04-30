@@ -17,6 +17,7 @@ import os
 from django.contrib.auth.models import User
 from rest_framework.views import APIView
 from rest_framework.response import Response
+import json
 
 
 from .models import UserProfile
@@ -193,34 +194,88 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             return Employee.objects.none()
 
     def create(self, request, *args, **kwargs):
-        """Tạo nhân viên mới
-           Đã loại bỏ kiểm tra admin để cho phép tất cả người dùng đã xác thực tạo nhân viên
-        """
+        """Tạo nhân viên mới và tài khoản người dùng tương ứng"""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
+        
+        # Lấy thông tin nhân viên từ dữ liệu đã validate
+        employee_data = serializer.validated_data.copy()  # Sử dụng copy để tránh thay đổi dữ liệu gốc
+        employee_id = employee_data.get('employee_id')
+        first_name = employee_data.get('first_name', '')
+        last_name = employee_data.get('last_name', '')
+        email = employee_data.get('email', '')
+        
+        # Kiểm tra username đã tồn tại chưa
+        if User.objects.filter(username=employee_id).exists():
+            return Response({
+                'error': f'Không thể tạo tài khoản: Tên đăng nhập {employee_id} đã tồn tại'
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            # Tạo user mới với employee_id làm username và password
+            user = User.objects.create_user(
+                username=employee_id,
+                password=employee_id,  # Password giống với employee_id
+                first_name=first_name,
+                last_name=last_name,
+                email=email if email else f"{employee_id}@example.com"
+            )
+            
+            # Tạo profile cho user
+            UserProfile.objects.create(
+                user=user,
+                is_user=True  # Đặt vai trò là user
+            )
+            
+            # Gán user vào employee_data
+            employee_data['username'] = user
+            
+        except Exception as e:
+            return Response({
+                'error': f'Lỗi khi tạo tài khoản người dùng: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Tạo nhân viên với dữ liệu đã update
+        employee = Employee.objects.create(**employee_data)
+        
+        # Lấy dữ liệu nhân viên mới tạo để trả về
+        result_serializer = self.get_serializer(employee)
+        
         headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        return Response(result_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
     
     def update(self, request, *args, **kwargs):
-        """Cập nhật thông tin nhân viên"""
-        try:
-            user_profile = UserProfile.objects.get(user_id=request.user.id)  # Truy vấn theo user_id
-            if not user_profile.is_admin:
-                return Response({
-                    'error': 'Bạn không có quyền cập nhật thông tin nhân viên'
-                }, status=status.HTTP_403_FORBIDDEN)
-                
-            partial = kwargs.pop('partial', False)
-            instance = self.get_object()
-            serializer = self.get_serializer(instance, data=request.data, partial=partial)
-            serializer.is_valid(raise_exception=True)
-            self.perform_update(serializer)
-            return Response(serializer.data)
-        except UserProfile.DoesNotExist:
-            return Response({
-                'error': 'Không tìm thấy thông tin người dùng'
-            }, status=status.HTTP_404_NOT_FOUND)
+        """Cập nhật thông tin nhân viên và đồng bộ với tài khoản người dùng"""
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        
+        # Lấy thông tin cần cập nhật
+        update_data = serializer.validated_data
+        
+        # Cập nhật thông tin User liên kết nếu có thay đổi
+        if instance.username and (
+            'first_name' in update_data or 
+            'last_name' in update_data or 
+            'email' in update_data
+        ):
+            user = instance.username
+            if 'first_name' in update_data:
+                user.first_name = update_data['first_name']
+            if 'last_name' in update_data:
+                user.last_name = update_data['last_name']
+            if 'email' in update_data:
+                user.email = update_data['email']
+            user.save()
+            
+        # Thực hiện cập nhật employee
+        self.perform_update(serializer)
+        
+        if getattr(instance, '_prefetched_objects_cache', None):
+            instance._prefetched_objects_cache = {}
+            
+        return Response(serializer.data)
     
     def destroy(self, request, *args, **kwargs):
         """Xóa nhân viên"""

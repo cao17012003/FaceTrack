@@ -40,15 +40,23 @@ export function AuthProvider({ children }) {
 
       if (response.data.success) {
         // Kiểm tra xem vai trò người dùng có khớp với vai trò đã chọn không
-        const userRole = response.data.user?.is_staff ? 'admin' : 'user';
-        if (userRole !== role) {
-          throw new Error(`Tài khoản này không có quyền đăng nhập với vai trò ${role === 'admin' ? 'Quản trị viên' : 'Nhân viên'}`);
+        const userProfile = response.data.user_profile || {};
+        
+        const isUserAdmin = userProfile.is_admin || false;
+        const isUserEmployee = userProfile.is_user || false;
+        
+        // Kiểm tra quyền truy cập theo vai trò đã chọn khi đăng nhập
+        if (role === 'admin' && !isUserAdmin) {
+          throw new Error('Tài khoản này không có quyền truy cập với vai trò Quản trị viên');
+        } else if (role === 'user' && !isUserEmployee) {
+          throw new Error('Tài khoản này không có quyền truy cập với vai trò Nhân viên');
         }
 
         const userData = {
           ...response.data,
-          role: role
+          role: role  // Lưu đúng vai trò mà người dùng đã chọn khi đăng nhập
         };
+        
         console.log('Đăng nhập thành công:', userData);
         setCurrentUser(userData);
         localStorage.setItem(USER_DATA_KEY, JSON.stringify(userData));
@@ -81,12 +89,14 @@ export function AuthProvider({ children }) {
 
   // Kiểm tra xem người dùng hiện tại có phải là admin không
   const isAdmin = () => {
-    return currentUser && currentUser.role === 'admin';
+    if (!currentUser) return false;
+    return currentUser.role === 'admin';
   };
 
   // Kiểm tra xem người dùng hiện tại có phải là nhân viên không
   const isEmployee = () => {
-    return currentUser && currentUser.role === 'user';
+    if (!currentUser) return false;
+    return currentUser.role === 'user';
   };
 
   // Lấy thông tin đầy đủ của người dùng

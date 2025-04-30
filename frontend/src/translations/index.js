@@ -9,7 +9,8 @@ export const translations = {
     shifts: "Shifts",
     reports: "Attendance Reports",
     calendar: "Calendar",
-    notifications: "Notifications"
+    notifications: "Notifications",
+    support: "Support & Complaints"
   },
   // Common
   common: {

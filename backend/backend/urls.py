@@ -5,11 +5,11 @@ from django.views.static import serve
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/', include('api.urls')),
     path('api/', include('employees.urls')),
     path('api/', include('attendance.urls')),
-    path('api/', include('authentication.urls')),
     path('api/', include('notifications.urls')),
-    path('api/', include('register.urls')),
+    path('api/', include('support.urls')),
     
     # Static và media URLs
     path('media/<path:path>', serve, {'document_root': settings.MEDIA_ROOT}),

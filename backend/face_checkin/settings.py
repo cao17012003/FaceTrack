@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'attendance',
     'api',
     'notifications',
+    'support',
 ]
 
 MIDDLEWARE = [

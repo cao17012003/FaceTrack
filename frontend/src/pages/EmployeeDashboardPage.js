@@ -123,8 +123,8 @@ const AttendanceStatusChip = ({ status }) => {
 
 const EmployeeDashboardPage = () => {
   console.log("EmployeeDashboardPage Component Start");
-  const { user } = useAuth();
-  console.log("EmployeeDashboardPage user:", JSON.stringify(user, null, 2));
+  const { currentUser } = useAuth();
+  console.log("EmployeeDashboardPage currentUser:", JSON.stringify(currentUser, null, 2));
   const theme = useTheme();
   const [employeeInfo, setEmployeeInfo] = useState({
     employee_id: "EMP001",
@@ -304,8 +304,8 @@ const EmployeeDashboardPage = () => {
       setIsLoading(true);
       try {
         // Lấy thông tin cá nhân - sử dụng getUserInfo từ useAuth
-        if (user) {
-          const userInfo = user || {};
+        if (currentUser) {
+          const userInfo = currentUser || {};
           console.log("User info chi tiết:", JSON.stringify(userInfo, null, 2));
           
           // Nếu có thông tin user, cập nhật employeeInfo
@@ -375,7 +375,7 @@ const EmployeeDashboardPage = () => {
     };
 
     fetchEmployeeData();
-  }, [user]);
+  }, [currentUser]);
   
   // Render màn hình loading nếu đang tải dữ liệu
   if (isLoading) {
@@ -398,7 +398,9 @@ const EmployeeDashboardPage = () => {
           />
           <Box>
             <Typography variant="h4" fontWeight="bold" gutterBottom>
-              Xin chào, {employeeInfo?.first_name}!
+              Xin chào, {employeeInfo?.first_name 
+                ? `${employeeInfo.first_name} ${employeeInfo.last_name || ''}`.trim()
+                : currentUser?.user?.username || 'Nhân viên'}!
             </Typography>
             <Typography variant="subtitle1">
               {moment().format('dddd, [ngày] D [tháng] M [năm] YYYY')}

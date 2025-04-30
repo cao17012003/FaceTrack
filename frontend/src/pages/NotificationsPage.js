@@ -13,7 +13,26 @@ import {
   CircularProgress,
   Alert,
   Button,
-  Grid
+  Grid,
+  IconButton,
+  Menu,
+  MenuItem,
+  Badge,
+  Tooltip,
+  Tab,
+  Tabs,
+  SwipeableDrawer,
+  TextField,
+  InputAdornment,
+  Snackbar,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  FormControl,
+  InputLabel,
+  Select,
+  FormHelperText
 } from '@mui/material';
 import {
   Notifications as NotificationsIcon,
@@ -21,36 +40,125 @@ import {
   Business as BusinessIcon,
   AccessTime as AccessTimeIcon,
   Money as MoneyIcon,
-  Info as InfoIcon
+  Info as InfoIcon,
+  MoreVert as MoreVertIcon,
+  DeleteOutline as DeleteIcon,
+  CheckCircle as CheckCircleIcon,
+  FilterList as FilterListIcon,
+  Search as SearchIcon,
+  Refresh as RefreshIcon,
+  Clear as ClearIcon,
+  Add as AddIcon
 } from '@mui/icons-material';
-import { notificationApi } from '../services/api';
+import { notificationApi, employeeApi } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
 
 const NotificationsPage = () => {
   const [notifications, setNotifications] = useState([]);
+  const [filteredNotifications, setFilteredNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const { currentUser, getEmployeeId } = useAuth();
+  const [success, setSuccess] = useState(null);
+  const { currentUser, getEmployeeId, isAdmin } = useAuth();
+  const [activeTab, setActiveTab] = useState(0);
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [selectedNotification, setSelectedNotification] = useState(null);
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('all');
+  
+  // State cho chức năng tạo thông báo mới
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [employees, setEmployees] = useState([]);
+  const [loadingEmployees, setLoadingEmployees] = useState(false);
+  const [newNotification, setNewNotification] = useState({
+    title: '',
+    message: '',
+    type: 'system',
+    target: 'all', // 'all' hoặc 'specific'
+    employee_ids: []
+  });
+  const [formErrors, setFormErrors] = useState({});
   
   useEffect(() => {
     fetchNotifications();
   }, []);
   
+  useEffect(() => {
+    // Lọc thông báo dựa trên tab hiện tại và các bộ lọc
+    let filtered = [...notifications];
+    
+    // Lọc theo tab
+    if (activeTab === 1) {
+      filtered = filtered.filter(n => !n.is_read);
+    } else if (activeTab === 2) {
+      filtered = filtered.filter(n => n.is_read);
+    }
+    
+    // Lọc theo loại thông báo
+    if (typeFilter !== 'all') {
+      filtered = filtered.filter(n => n.type === typeFilter);
+    }
+    
+    // Lọc theo thời gian
+    const now = new Date();
+    if (dateFilter === 'today') {
+      filtered = filtered.filter(n => {
+        const notifDate = new Date(n.created_at);
+        return notifDate.toDateString() === now.toDateString();
+      });
+    } else if (dateFilter === 'week') {
+      const weekAgo = new Date(now);
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      filtered = filtered.filter(n => {
+        const notifDate = new Date(n.created_at);
+        return notifDate >= weekAgo;
+      });
+    } else if (dateFilter === 'month') {
+      const monthAgo = new Date(now);
+      monthAgo.setMonth(monthAgo.getMonth() - 1);
+      filtered = filtered.filter(n => {
+        const notifDate = new Date(n.created_at);
+        return notifDate >= monthAgo;
+      });
+    }
+    
+    // Lọc theo tìm kiếm
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(n => 
+        n.title.toLowerCase().includes(term) || 
+        n.message.toLowerCase().includes(term)
+      );
+    }
+    
+    setFilteredNotifications(filtered);
+  }, [notifications, activeTab, typeFilter, dateFilter, searchTerm]);
+  
   const fetchNotifications = async () => {
     setLoading(true);
     try {
       const employeeId = getEmployeeId();
-      if (!employeeId) {
+      if (!employeeId && !isAdmin()) {
         setError('Không tìm thấy thông tin nhân viên');
         setLoading(false);
         return;
       }
       
-      const response = await notificationApi.getAll({ employee_id: employeeId });
+      let response;
+      if (isAdmin()) {
+        // Admin có thể xem tất cả thông báo
+        response = await notificationApi.getAll();
+      } else {
+        // Nhân viên chỉ xem thông báo của mình
+        response = await notificationApi.getAll({ employee_id: employeeId });
+      }
+      
       setNotifications(response.data);
     } catch (err) {
-      console.error('Error fetching notifications:', err);
+      console.error('Lỗi khi tải thông báo:', err);
       setError('Có lỗi xảy ra khi tải thông báo. Vui lòng thử lại sau.');
     } finally {
       setLoading(false);
@@ -60,12 +168,13 @@ const NotificationsPage = () => {
   const handleMarkAllAsRead = async () => {
     try {
       const employeeId = getEmployeeId();
-      if (!employeeId) return;
+      if (!employeeId && !isAdmin()) return;
       
       await notificationApi.markAllAsRead(employeeId);
-      fetchNotifications(); // Reload notifications
+      fetchNotifications();
+      setSuccess('Đã đánh dấu tất cả thông báo là đã đọc');
     } catch (err) {
-      console.error('Error marking notifications as read:', err);
+      console.error('Lỗi khi đánh dấu đã đọc:', err);
       setError('Có lỗi xảy ra khi đánh dấu đã đọc. Vui lòng thử lại sau.');
     }
   };
@@ -73,10 +182,171 @@ const NotificationsPage = () => {
   const handleMarkAsRead = async (id) => {
     try {
       await notificationApi.markAsRead(id);
-      fetchNotifications(); // Reload notifications
+      fetchNotifications();
+      setSuccess('Đã đánh dấu thông báo là đã đọc');
     } catch (err) {
-      console.error('Error marking notification as read:', err);
+      console.error('Lỗi khi đánh dấu đã đọc:', err);
       setError('Có lỗi xảy ra khi đánh dấu đã đọc. Vui lòng thử lại sau.');
+    }
+  };
+  
+  const handleDeleteNotification = async (id) => {
+    try {
+      await notificationApi.delete(id);
+      fetchNotifications();
+      setSuccess('Đã xóa thông báo thành công');
+      handleCloseMenu();
+    } catch (err) {
+      console.error('Lỗi khi xóa thông báo:', err);
+      if (err.response && err.response.data) {
+        // Hiển thị thông báo lỗi chi tiết từ API
+        setError(`Không thể xóa thông báo: ${err.response.data.error || 'Bạn không có quyền thực hiện thao tác này'}`);
+      } else {
+        setError('Có lỗi xảy ra khi xóa thông báo. Chỉ quản trị viên mới có quyền xóa thông báo.');
+      }
+    }
+  };
+  
+  const handleOpenMenu = (event, notification) => {
+    setAnchorEl(event.currentTarget);
+    setSelectedNotification(notification);
+  };
+  
+  const handleCloseMenu = () => {
+    setAnchorEl(null);
+    setSelectedNotification(null);
+  };
+  
+  const handleChangeTab = (event, newValue) => {
+    setActiveTab(newValue);
+  };
+  
+  const handleClearFilters = () => {
+    setTypeFilter('all');
+    setDateFilter('all');
+    setSearchTerm('');
+    setFilterDrawerOpen(false);
+  };
+  
+  // Hàm xử lý tạo thông báo mới
+  const fetchEmployees = async () => {
+    if (isAdmin()) {
+      setLoadingEmployees(true);
+      try {
+        const response = await employeeApi.getAll();
+        // Đảm bảo mỗi employee có đầy đủ thông tin cần thiết
+        const employeesWithIds = response.data.map(employee => ({
+          ...employee,
+          fullName: `${employee.first_name || ''} ${employee.last_name || ''}`.trim()
+        }));
+        setEmployees(employeesWithIds);
+      } catch (err) {
+        console.error('Lỗi khi tải danh sách nhân viên:', err);
+        setError('Không thể tải danh sách nhân viên');
+      } finally {
+        setLoadingEmployees(false);
+      }
+    }
+  };
+  
+  const handleOpenCreateDialog = () => {
+    if (isAdmin()) {
+      fetchEmployees();
+      setCreateDialogOpen(true);
+    }
+  };
+  
+  const handleCloseCreateDialog = () => {
+    setCreateDialogOpen(false);
+    setNewNotification({
+      title: '',
+      message: '',
+      type: 'system',
+      target: 'all',
+      employee_ids: []
+    });
+    setFormErrors({});
+  };
+  
+  const handleNotificationChange = (e) => {
+    const { name, value } = e.target;
+    setNewNotification(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    
+    // Xóa lỗi khi người dùng bắt đầu nhập
+    if (formErrors[name]) {
+      setFormErrors(prev => ({
+        ...prev,
+        [name]: ''
+      }));
+    }
+  };
+  
+  const validateForm = () => {
+    const errors = {};
+    if (!newNotification.title.trim()) {
+      errors.title = 'Tiêu đề không được để trống';
+    }
+    if (!newNotification.message.trim()) {
+      errors.message = 'Nội dung không được để trống';
+    }
+    if (newNotification.target === 'specific' && newNotification.employee_ids.length === 0) {
+      errors.employee_ids = 'Vui lòng chọn ít nhất một nhân viên';
+    }
+    
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+  
+  const handleCreateNotification = async () => {
+    if (!validateForm()) return;
+    
+    try {
+      let data = {
+        title: newNotification.title,
+        message: newNotification.message,
+        type: newNotification.type
+      };
+      
+      if (newNotification.target === 'all') {
+        // Gửi thông báo cho tất cả nhân viên
+        const response = await employeeApi.getAll();
+        const allEmployees = response.data;
+        
+        // Tạo danh sách promises để gửi thông báo đến tất cả nhân viên
+        const promises = allEmployees.map(employee => 
+          notificationApi.create({
+            ...data,
+            employee: employee.employee_id  // Sử dụng employee_id thay vì id
+          })
+        );
+        
+        await Promise.all(promises);
+      } else if (newNotification.target === 'specific') {
+        // Gửi thông báo cho từng nhân viên được chọn
+        const promises = newNotification.employee_ids.map(employeeId => 
+          notificationApi.create({
+            ...data,
+            employee: employeeId  // Gửi trực tiếp employee_id
+          })
+        );
+        
+        await Promise.all(promises);
+      }
+      
+      setSuccess('Đã tạo thông báo thành công');
+      handleCloseCreateDialog();
+      fetchNotifications();
+    } catch (err) {
+      console.error('Lỗi khi tạo thông báo:', err);
+      if (err.response && err.response.data) {
+        // Hiển thị thông báo lỗi chi tiết từ API nếu có
+        setError(`Lỗi: ${JSON.stringify(err.response.data)}`);
+      } else {
+        setError('Có lỗi xảy ra khi tạo thông báo mới. Vui lòng kiểm tra lại thông tin.');
+      }
     }
   };
   
@@ -103,21 +373,124 @@ const NotificationsPage = () => {
     }
   };
   
+  const getTypeLabel = (type) => {
+    switch(type) {
+      case 'system':
+        return 'Hệ thống';
+      case 'attendance':
+        return 'Chấm công';
+      case 'leave':
+        return 'Nghỉ phép';
+      case 'payroll':
+        return 'Lương thưởng';
+      default:
+        return 'Khác';
+    }
+  };
+  
+  const unreadCount = notifications.filter(n => !n.is_read).length;
+  
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4">Hòm thư của tôi</Typography>
-        <Button 
-          variant="contained" 
-          onClick={handleMarkAllAsRead}
-          disabled={loading || notifications.filter(n => !n.is_read).length === 0}
-        >
-          Đánh dấu tất cả là đã đọc
-        </Button>
+      <Snackbar 
+        open={!!success} 
+        autoHideDuration={3000} 
+        onClose={() => setSuccess(null)}
+        message={success}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      />
+      
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Typography variant="h4">
+          Hòm thư của tôi
+          {unreadCount > 0 && (
+            <Badge
+              color="error"
+              badgeContent={unreadCount}
+              sx={{ ml: 2 }}
+            />
+          )}
+        </Typography>
+        
+        <Box>
+          {isAdmin() && (
+            <Tooltip title="Tạo thông báo mới">
+              <Button 
+                variant="contained" 
+                color="success"
+                startIcon={<AddIcon />}
+                onClick={handleOpenCreateDialog}
+                sx={{ mr: 1 }}
+              >
+                Tạo thông báo
+              </Button>
+            </Tooltip>
+          )}
+          
+          <Tooltip title="Làm mới">
+            <IconButton onClick={fetchNotifications} sx={{ mr: 1 }}>
+              <RefreshIcon />
+            </IconButton>
+          </Tooltip>
+          
+          <Tooltip title="Bộ lọc">
+            <IconButton onClick={() => setFilterDrawerOpen(true)} sx={{ mr: 1 }}>
+              <FilterListIcon />
+            </IconButton>
+          </Tooltip>
+          
+          <Button 
+            variant="contained" 
+            onClick={handleMarkAllAsRead}
+            disabled={loading || notifications.filter(n => !n.is_read).length === 0}
+            startIcon={<CheckCircleIcon />}
+          >
+            Đánh dấu tất cả là đã đọc
+          </Button>
+        </Box>
       </Box>
       
+      <Box sx={{ mb: 2 }}>
+        <TextField
+          fullWidth
+          placeholder="Tìm kiếm thông báo..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon />
+              </InputAdornment>
+            ),
+            endAdornment: searchTerm && (
+              <InputAdornment position="end">
+                <IconButton onClick={() => setSearchTerm('')} size="small">
+                  <ClearIcon />
+                </IconButton>
+              </InputAdornment>
+            )
+          }}
+          size="small"
+          variant="outlined"
+        />
+      </Box>
+      
+      <Tabs 
+        value={activeTab} 
+        onChange={handleChangeTab} 
+        sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}
+      >
+        <Tab label="Tất cả" />
+        <Tab 
+          label="Chưa đọc" 
+          icon={unreadCount > 0 ? <Badge color="error" badgeContent={unreadCount} /> : null}
+          iconPosition="end"
+        />
+        <Tab label="Đã đọc" />
+      </Tabs>
+      
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
           {error}
         </Alert>
       )}
@@ -126,20 +499,24 @@ const NotificationsPage = () => {
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
           <CircularProgress />
         </Box>
-      ) : notifications.length > 0 ? (
-        <Paper>
+      ) : filteredNotifications.length > 0 ? (
+        <Paper elevation={3}>
           <List>
-            {notifications.map((notification, index) => (
+            {filteredNotifications.map((notification, index) => (
               <React.Fragment key={notification.id}>
                 <ListItem 
                   alignItems="flex-start"
                   sx={{ 
                     bgcolor: notification.is_read ? 'transparent' : 'rgba(25, 118, 210, 0.05)',
-                    position: 'relative'
+                    position: 'relative',
+                    transition: 'background-color 0.3s',
+                    '&:hover': {
+                      bgcolor: notification.is_read ? 'rgba(0, 0, 0, 0.04)' : 'rgba(25, 118, 210, 0.1)',
+                    }
                   }}
                 >
                   <ListItemAvatar>
-                    <Avatar>
+                    <Avatar sx={{ bgcolor: notification.is_read ? 'action.disabled' : 'primary.main' }}>
                       {getIconForType(notification.type)}
                     </Avatar>
                   </ListItemAvatar>
@@ -147,16 +524,29 @@ const NotificationsPage = () => {
                     primary={
                       <Grid container alignItems="center" spacing={1}>
                         <Grid item xs>
-                          <Typography variant="subtitle1" component="div">
+                          <Typography 
+                            variant="subtitle1" 
+                            component="div"
+                            sx={{ 
+                              fontWeight: notification.is_read ? 'normal' : 'bold',
+                            }}
+                          >
                             {notification.title}
                           </Typography>
                         </Grid>
                         <Grid item>
                           <Chip 
                             size="small" 
+                            label={getTypeLabel(notification.type)}
+                            color={notification.is_read ? "default" : "primary"}
+                            variant="outlined"
+                            sx={{ mr: 1 }}
+                          />
+                          <Chip 
+                            size="small" 
                             label={formatDate(notification.created_at)}
                             variant="outlined"
-                            color="primary"
+                            color="secondary"
                           />
                         </Grid>
                         {!notification.is_read && (
@@ -165,7 +555,6 @@ const NotificationsPage = () => {
                               size="small" 
                               color="error" 
                               label="Mới"
-                              sx={{ ml: 1 }}
                             />
                           </Grid>
                         )}
@@ -174,7 +563,11 @@ const NotificationsPage = () => {
                     secondary={
                       <React.Fragment>
                         <Typography
-                          sx={{ display: 'block' }}
+                          sx={{ 
+                            display: 'block', 
+                            mt: 1,
+                            fontWeight: notification.is_read ? 'normal' : 500,
+                          }}
                           component="span"
                           variant="body2"
                           color="text.primary"
@@ -182,36 +575,303 @@ const NotificationsPage = () => {
                           {notification.message}
                         </Typography>
                         
-                        {!notification.is_read && (
-                          <Button 
-                            size="small" 
-                            variant="text" 
-                            onClick={() => handleMarkAsRead(notification.id)}
-                            sx={{ mt: 1 }}
+                        <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-end' }}>
+                          {!notification.is_read && (
+                            <Button 
+                              size="small" 
+                              variant="outlined"
+                              color="primary"
+                              onClick={() => handleMarkAsRead(notification.id)}
+                              startIcon={<CheckCircleIcon />}
+                              sx={{ mr: 1 }}
+                            >
+                              Đánh dấu đã đọc
+                            </Button>
+                          )}
+                          
+                          <IconButton
+                            size="small"
+                            onClick={(e) => handleOpenMenu(e, notification)}
                           >
-                            Đánh dấu đã đọc
-                          </Button>
-                        )}
+                            <MoreVertIcon />
+                          </IconButton>
+                        </Box>
                       </React.Fragment>
                     }
                   />
                 </ListItem>
-                {index < notifications.length - 1 && <Divider variant="inset" component="li" />}
+                {index < filteredNotifications.length - 1 && <Divider variant="inset" component="li" />}
               </React.Fragment>
             ))}
           </List>
         </Paper>
       ) : (
-        <Paper sx={{ p: 4, textAlign: 'center' }}>
+        <Paper sx={{ p: 4, textAlign: 'center' }} elevation={3}>
           <NotificationsIcon sx={{ fontSize: 60, color: 'text.secondary', mb: 2 }} />
           <Typography variant="h6" color="text.secondary">
             Không có thông báo nào
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Hiện tại bạn không có thông báo nào. Khi có thông báo mới, nó sẽ xuất hiện ở đây.
+            {searchTerm || typeFilter !== 'all' || dateFilter !== 'all' 
+              ? 'Không tìm thấy thông báo nào phù hợp với bộ lọc của bạn.'
+              : 'Hiện tại bạn không có thông báo nào. Khi có thông báo mới, nó sẽ xuất hiện ở đây.'}
           </Typography>
+          {(searchTerm || typeFilter !== 'all' || dateFilter !== 'all') && (
+            <Button 
+              variant="outlined" 
+              sx={{ mt: 2 }}
+              onClick={handleClearFilters}
+            >
+              Xóa bộ lọc
+            </Button>
+          )}
         </Paper>
       )}
+      
+      {/* Menu cho từng thông báo */}
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={handleCloseMenu}
+      >
+        {selectedNotification && !selectedNotification.is_read && (
+          <MenuItem onClick={() => {
+            handleMarkAsRead(selectedNotification.id);
+            handleCloseMenu();
+          }}>
+            <ListItemAvatar sx={{ minWidth: 36 }}>
+              <CheckCircleIcon fontSize="small" />
+            </ListItemAvatar>
+            <ListItemText primary="Đánh dấu đã đọc" />
+          </MenuItem>
+        )}
+        
+        {isAdmin() && (
+          <MenuItem onClick={() => {
+            handleDeleteNotification(selectedNotification?.id);
+          }}>
+            <ListItemAvatar sx={{ minWidth: 36 }}>
+              <DeleteIcon fontSize="small" color="error" />
+            </ListItemAvatar>
+            <ListItemText primary="Xóa thông báo" />
+          </MenuItem>
+        )}
+      </Menu>
+      
+      {/* Drawer cho bộ lọc */}
+      <SwipeableDrawer
+        anchor="right"
+        open={filterDrawerOpen}
+        onClose={() => setFilterDrawerOpen(false)}
+        onOpen={() => setFilterDrawerOpen(true)}
+      >
+        <Box sx={{ width: 300, p: 2 }}>
+          <Typography variant="h6" sx={{ mb: 2 }}>Bộ lọc thông báo</Typography>
+          
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>Loại thông báo</Typography>
+          <Box sx={{ mb: 3 }}>
+            <Button
+              variant={typeFilter === 'all' ? 'contained' : 'outlined'}
+              size="small"
+              onClick={() => setTypeFilter('all')}
+              sx={{ mr: 1, mb: 1 }}
+            >
+              Tất cả
+            </Button>
+            <Button
+              variant={typeFilter === 'system' ? 'contained' : 'outlined'}
+              size="small"
+              onClick={() => setTypeFilter('system')}
+              sx={{ mr: 1, mb: 1 }}
+              color="info"
+            >
+              Hệ thống
+            </Button>
+            <Button
+              variant={typeFilter === 'attendance' ? 'contained' : 'outlined'}
+              size="small"
+              onClick={() => setTypeFilter('attendance')}
+              sx={{ mr: 1, mb: 1 }}
+              color="success"
+            >
+              Chấm công
+            </Button>
+            <Button
+              variant={typeFilter === 'leave' ? 'contained' : 'outlined'}
+              size="small"
+              onClick={() => setTypeFilter('leave')}
+              sx={{ mr: 1, mb: 1 }}
+              color="warning"
+            >
+              Nghỉ phép
+            </Button>
+            <Button
+              variant={typeFilter === 'payroll' ? 'contained' : 'outlined'}
+              size="small"
+              onClick={() => setTypeFilter('payroll')}
+              sx={{ mr: 1, mb: 1 }}
+              color="error"
+            >
+              Lương thưởng
+            </Button>
+          </Box>
+          
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>Thời gian</Typography>
+          <Box sx={{ mb: 3 }}>
+            <Button
+              variant={dateFilter === 'all' ? 'contained' : 'outlined'}
+              size="small"
+              onClick={() => setDateFilter('all')}
+              sx={{ mr: 1, mb: 1 }}
+            >
+              Tất cả
+            </Button>
+            <Button
+              variant={dateFilter === 'today' ? 'contained' : 'outlined'}
+              size="small"
+              onClick={() => setDateFilter('today')}
+              sx={{ mr: 1, mb: 1 }}
+            >
+              Hôm nay
+            </Button>
+            <Button
+              variant={dateFilter === 'week' ? 'contained' : 'outlined'}
+              size="small"
+              onClick={() => setDateFilter('week')}
+              sx={{ mr: 1, mb: 1 }}
+            >
+              Tuần này
+            </Button>
+            <Button
+              variant={dateFilter === 'month' ? 'contained' : 'outlined'}
+              size="small"
+              onClick={() => setDateFilter('month')}
+              sx={{ mr: 1, mb: 1 }}
+            >
+              Tháng này
+            </Button>
+          </Box>
+          
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3 }}>
+            <Button 
+              variant="outlined" 
+              onClick={handleClearFilters}
+            >
+              Xóa bộ lọc
+            </Button>
+            <Button 
+              variant="contained" 
+              onClick={() => setFilterDrawerOpen(false)}
+            >
+              Áp dụng
+            </Button>
+          </Box>
+        </Box>
+      </SwipeableDrawer>
+      
+      {/* Dialog tạo thông báo mới */}
+      <Dialog 
+        open={createDialogOpen} 
+        onClose={handleCloseCreateDialog}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Tạo thông báo mới</DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 1 }}>
+            <TextField
+              name="title"
+              label="Tiêu đề thông báo"
+              fullWidth
+              value={newNotification.title}
+              onChange={handleNotificationChange}
+              margin="normal"
+              error={!!formErrors.title}
+              helperText={formErrors.title}
+            />
+            
+            <TextField
+              name="message"
+              label="Nội dung thông báo"
+              fullWidth
+              multiline
+              rows={4}
+              value={newNotification.message}
+              onChange={handleNotificationChange}
+              margin="normal"
+              error={!!formErrors.message}
+              helperText={formErrors.message}
+            />
+            
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Loại thông báo</InputLabel>
+              <Select
+                name="type"
+                value={newNotification.type}
+                onChange={handleNotificationChange}
+              >
+                <MenuItem value="system">Hệ thống</MenuItem>
+                <MenuItem value="attendance">Chấm công</MenuItem>
+                <MenuItem value="leave">Nghỉ phép</MenuItem>
+                <MenuItem value="payroll">Lương thưởng</MenuItem>
+              </Select>
+            </FormControl>
+            
+            <FormControl fullWidth margin="normal">
+              <InputLabel>Gửi đến</InputLabel>
+              <Select
+                name="target"
+                value={newNotification.target}
+                onChange={handleNotificationChange}
+              >
+                <MenuItem value="all">Tất cả nhân viên</MenuItem>
+                <MenuItem value="specific">Nhân viên cụ thể</MenuItem>
+              </Select>
+            </FormControl>
+            
+            {newNotification.target === 'specific' && (
+              <FormControl fullWidth margin="normal" error={!!formErrors.employee_ids}>
+                <InputLabel>Chọn nhân viên</InputLabel>
+                <Select
+                  name="employee_ids"
+                  multiple
+                  value={newNotification.employee_ids}
+                  onChange={handleNotificationChange}
+                  renderValue={(selected) => `Đã chọn ${selected.length} nhân viên`}
+                >
+                  {loadingEmployees ? (
+                    <MenuItem disabled>
+                      <CircularProgress size={20} sx={{ mr: 1 }} />
+                      Đang tải danh sách nhân viên...
+                    </MenuItem>
+                  ) : employees.length === 0 ? (
+                    <MenuItem disabled>Không có nhân viên nào</MenuItem>
+                  ) : (
+                    employees.map((employee) => (
+                      <MenuItem key={employee.employee_id} value={employee.employee_id}>
+                        {employee.first_name} {employee.last_name} ({employee.employee_id})
+                      </MenuItem>
+                    ))
+                  )}
+                </Select>
+                {formErrors.employee_ids && (
+                  <FormHelperText>{formErrors.employee_ids}</FormHelperText>
+                )}
+              </FormControl>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseCreateDialog}>Hủy bỏ</Button>
+          <Button 
+            onClick={handleCreateNotification} 
+            variant="contained" 
+            color="primary"
+          >
+            Gửi thông báo
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

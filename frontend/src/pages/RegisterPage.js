@@ -23,7 +23,7 @@ const RegisterPage = () => {
     email: '',
     password: '',
     confirm_password: '',
-    role: 'user', // Mặc định là user
+    role: 'user',
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -57,17 +57,13 @@ const RegisterPage = () => {
       const response = await authApi.register(registerData);
 
       if (response.data.success) {
-        // Đăng ký thành công, lưu thông tin user vào localStorage
         const { user } = response.data;
         if (user) {
-          // Lưu id và username vào localStorage
           localStorage.setItem('user', JSON.stringify({
             id: user.id,
             username: user.username
           }));
         }
-
-        // Sau khi đăng ký thành công, chuyển hướng về trang đăng nhập
         navigate('/login');
       } else {
         setError(response.data.error || 'Có lỗi xảy ra khi đăng ký tài khoản');
@@ -79,48 +75,85 @@ const RegisterPage = () => {
     }
   };
 
-
   return (
     <Box
       sx={{
         minHeight: '100vh',
         display: 'flex',
         alignItems: 'center',
-        background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+        justifyContent: 'center',
+        background: 'linear-gradient(135deg, #1e3c72 0%, #4c1d95 50%, #6b21a8 100%)',
+        position: 'relative',
+        overflow: 'hidden',
+        '&:before': {
+          content: '""',
+          position: 'absolute',
+          top: '-50%',
+          left: '-50%',
+          width: '200%',
+          height: '200%',
+          background: 'radial-gradient(circle, rgba(255,255,255,0.15) 10%, transparent 40%)',
+          animation: 'pulse 15s ease-in-out infinite',
+          zIndex: 0,
+        },
+        '@keyframes pulse': {
+          '0%': { transform: 'scale(0.8)', opacity: 0.5 },
+          '50%': { transform: 'scale(1.2)', opacity: 0.3 },
+          '100%': { transform: 'scale(0.8)', opacity: 0.5 },
+        },
       }}
     >
       <Container component="main" maxWidth="xs">
         <Paper
-          elevation={8}
+          elevation={6}
           sx={{
-            padding: 4,
+            padding: 3,
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             width: '100%',
             borderRadius: 2,
-            background: 'rgba(255, 255, 255, 0.95)',
+            background: 'linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(245,250,255,0.85) 100%)',
+            backdropFilter: 'blur(12px)',
+            border: '1px solid rgba(255,255,255,0.2)',
+            transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+            '&:hover': {
+              transform: 'translateY(-4px)',
+              boxShadow: '0 12px 24px rgba(0,0,0,0.15)',
+            },
+            position: 'relative',
+            zIndex: 1,
           }}
         >
           <Avatar
             sx={{
               m: 1,
-              bgcolor: theme.palette.primary.main,
-              width: 56,
-              height: 56,
+              bgcolor: 'linear-gradient(45deg, #1e3c72, #2a5298)',
+              width: 50,
+              height: 50,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+              animation: 'pulseAvatar 2s ease-in-out infinite',
+              '@keyframes pulseAvatar': {
+                '0%': { transform: 'scale(1)' },
+                '50%': { transform: 'scale(1.05)' },
+                '100%': { transform: 'scale(1)' },
+              },
             }}
           >
-            <SecurityIcon sx={{ fontSize: 32 }} />
+            <SecurityIcon sx={{ fontSize: 30, color: '#fff' }} />
           </Avatar>
 
           <Typography
             component="h1"
-            variant="h4"
+            variant="h5"
             sx={{
-              mt: 2,
-              mb: 3,
+              mt: 1,
+              mb: 2,
               fontWeight: 'bold',
               color: theme.palette.primary.main,
+              letterSpacing: '0.2px',
+              textShadow: '0 1px 3px rgba(0,0,0,0.1)',
+              fontSize: '1.8rem',
             }}
           >
             Đăng ký tài khoản
@@ -130,9 +163,19 @@ const RegisterPage = () => {
             <Alert
               severity="error"
               sx={{
-                mt: 2,
+                mt: 1,
+                mb: 2,
                 width: '100%',
                 borderRadius: 1,
+                bgcolor: 'rgba(255, 235, 235, 0.95)',
+                boxShadow: '0 2px 6px rgba(255,0,0,0.1)',
+                opacity: 0,
+                animation: 'fadeIn 0.3s ease forwards',
+                '@keyframes fadeIn': {
+                  to: { opacity: 1 },
+                },
+                fontSize: '0.85rem',
+                padding: '8px',
               }}
             >
               {error}
@@ -150,13 +193,44 @@ const RegisterPage = () => {
               onChange={handleInputChange}
               autoFocus
               InputProps={{
-                startAdornment: <PersonIcon sx={{ mr: 1, color: theme.palette.primary.main }} />,
+                startAdornment: (
+                  <PersonIcon
+                    sx={{
+                      mr: 0.5,
+                      color: theme.palette.primary.main,
+                      fontSize: 20,
+                      transition: 'color 0.3s ease',
+                      '.Mui-focused &': { color: theme.palette.primary.dark },
+                    }}
+                  />
+                ),
               }}
               sx={{
                 '& .MuiOutlinedInput-root': {
-                  '&:hover fieldset': { borderColor: theme.palette.primary.main },
+                  borderRadius: 1,
+                  background: 'rgba(255,255,255,0.9)',
+                  transition: 'all 0.3s ease',
+                  fontSize: '0.9rem',
+                  '&:hover fieldset': {
+                    borderColor: theme.palette.primary.dark,
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: theme.palette.primary.dark,
+                    boxShadow: `0 0 8px ${theme.palette.primary.light}`,
+                  },
                 },
-                '& .MuiInputLabel-root': { color: theme.palette.primary.main },
+                '& .MuiInputLabel-root': {
+                  color: theme.palette.primary.main,
+                  fontWeight: 'medium',
+                  fontSize: '0.9rem',
+                  '&.Mui-focused': {
+                    color: theme.palette.primary.dark,
+                  },
+                },
+                mb: 1.5,
+                '& .MuiInputBase-input': {
+                  padding: '8px 12px',
+                },
               }}
             />
 
@@ -170,13 +244,44 @@ const RegisterPage = () => {
               value={formData.email}
               onChange={handleInputChange}
               InputProps={{
-                startAdornment: <PersonIcon sx={{ mr: 1, color: theme.palette.primary.main }} />,
+                startAdornment: (
+                  <PersonIcon
+                    sx={{
+                      mr: 0.5,
+                      color: theme.palette.primary.main,
+                      fontSize: 20,
+                      transition: 'color 0.3s ease',
+                      '.Mui-focused &': { color: theme.palette.primary.dark },
+                    }}
+                  />
+                ),
               }}
               sx={{
                 '& .MuiOutlinedInput-root': {
-                  '&:hover fieldset': { borderColor: theme.palette.primary.main },
+                  borderRadius: 1,
+                  background: 'rgba(255,255,255,0.9)',
+                  transition: 'all 0.3s ease',
+                  fontSize: '0.9rem',
+                  '&:hover fieldset': {
+                    borderColor: theme.palette.primary.dark,
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: theme.palette.primary.dark,
+                    boxShadow: `0 0 8px ${theme.palette.primary.light}`,
+                  },
                 },
-                '& .MuiInputLabel-root': { color: theme.palette.primary.main },
+                '& .MuiInputLabel-root': {
+                  color: theme.palette.primary.main,
+                  fontWeight: 'medium',
+                  fontSize: '0.9rem',
+                  '&.Mui-focused': {
+                    color: theme.palette.primary.dark,
+                  },
+                },
+                mb: 1.5,
+                '& .MuiInputBase-input': {
+                  padding: '8px 12px',
+                },
               }}
             />
 
@@ -190,13 +295,44 @@ const RegisterPage = () => {
               value={formData.password}
               onChange={handleInputChange}
               InputProps={{
-                startAdornment: <LockIcon sx={{ mr: 1, color: theme.palette.primary.main }} />,
+                startAdornment: (
+                  <LockIcon
+                    sx={{
+                      mr: 0.5,
+                      color: theme.palette.primary.main,
+                      fontSize: 20,
+                      transition: 'color 0.3s ease',
+                      '.Mui-focused &': { color: theme.palette.primary.dark },
+                    }}
+                  />
+                ),
               }}
               sx={{
                 '& .MuiOutlinedInput-root': {
-                  '&:hover fieldset': { borderColor: theme.palette.primary.main },
+                  borderRadius: 1,
+                  background: 'rgba(255,255,255,0.9)',
+                  transition: 'all 0.3s ease',
+                  fontSize: '0.9rem',
+                  '&:hover fieldset': {
+                    borderColor: theme.palette.primary.dark,
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: theme.palette.primary.dark,
+                    boxShadow: `0 0 8px ${theme.palette.primary.light}`,
+                  },
                 },
-                '& .MuiInputLabel-root': { color: theme.palette.primary.main },
+                '& .MuiInputLabel-root': {
+                  color: theme.palette.primary.main,
+                  fontWeight: 'medium',
+                  fontSize: '0.9rem',
+                  '&.Mui-focused': {
+                    color: theme.palette.primary.dark,
+                  },
+                },
+                mb: 1.5,
+                '& .MuiInputBase-input': {
+                  padding: '8px 12px',
+                },
               }}
             />
 
@@ -210,13 +346,44 @@ const RegisterPage = () => {
               value={formData.confirm_password}
               onChange={handleInputChange}
               InputProps={{
-                startAdornment: <LockIcon sx={{ mr: 1, color: theme.palette.primary.main }} />,
+                startAdornment: (
+                  <LockIcon
+                    sx={{
+                      mr: 0.5,
+                      color: theme.palette.primary.main,
+                      fontSize: 20,
+                      transition: 'color 0.3s ease',
+                      '.Mui-focused &': { color: theme.palette.primary.dark },
+                    }}
+                  />
+                ),
               }}
               sx={{
                 '& .MuiOutlinedInput-root': {
-                  '&:hover fieldset': { borderColor: theme.palette.primary.main },
+                  borderRadius: 1,
+                  background: 'rgba(255,255,255,0.9)',
+                  transition: 'all 0.3s ease',
+                  fontSize: '0.9rem',
+                  '&:hover fieldset': {
+                    borderColor: theme.palette.primary.dark,
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: theme.palette.primary.dark,
+                    boxShadow: `0 0 8px ${theme.palette.primary.light}`,
+                  },
                 },
-                '& .MuiInputLabel-root': { color: theme.palette.primary.main },
+                '& .MuiInputLabel-root': {
+                  color: theme.palette.primary.main,
+                  fontWeight: 'medium',
+                  fontSize: '0.9rem',
+                  '&.Mui-focused': {
+                    color: theme.palette.primary.dark,
+                  },
+                },
+                mb: 1.5,
+                '& .MuiInputBase-input': {
+                  padding: '8px 12px',
+                },
               }}
             />
 
@@ -225,21 +392,29 @@ const RegisterPage = () => {
               fullWidth
               variant="contained"
               sx={{
-                mt: 3,
-                mb: 2,
-                py: 1.5,
-                borderRadius: 2,
+                mt: 2,
+                mb: 1.5,
+                py: 1,
+                borderRadius: 1,
                 textTransform: 'none',
-                fontSize: '1.1rem',
+                fontSize: '0.95rem',
                 fontWeight: 'bold',
                 background: 'linear-gradient(45deg, #1e3c72 30%, #2a5298 90%)',
+                boxShadow: '0 3px 10px rgba(0,0,0,0.2)',
+                transition: 'all 0.3s ease',
                 '&:hover': {
                   background: 'linear-gradient(45deg, #2a5298 30%, #1e3c72 90%)',
+                  transform: 'scale(1.02)',
+                  boxShadow: '0 5px 15px rgba(0,0,0,0.3)',
+                },
+                '&:disabled': {
+                  background: 'linear-gradient(45deg, #b0bec5 30%, #90a4ae 90%)',
+                  boxShadow: 'none',
                 },
               }}
               disabled={loading}
             >
-              {loading ? <CircularProgress size={24} color="inherit" /> : 'Đăng ký'}
+              {loading ? <CircularProgress size={22} color="inherit" /> : 'Đăng ký'}
             </Button>
 
             <Button
@@ -247,10 +422,21 @@ const RegisterPage = () => {
               variant="outlined"
               onClick={() => navigate('/login')}
               sx={{
+                py: 1,
+                borderRadius: 1,
                 textTransform: 'none',
-                fontSize: '1.1rem',
+                fontSize: '0.95rem',
                 fontWeight: 'bold',
-                mb: 2,
+                borderColor: theme.palette.primary.main,
+                color: theme.palette.primary.main,
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  background: theme.palette.primary.light,
+                  color: '#fff',
+                  borderColor: theme.palette.primary.dark,
+                  transform: 'scale(1.02)',
+                },
+                mb: 1.5,
               }}
               disabled={loading}
             >

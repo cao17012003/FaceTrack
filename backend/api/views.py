@@ -86,14 +86,18 @@ def login(request):
     
     # Nếu không tìm thấy user thông thường, kiểm tra xem có phải là employee ID không
     if not user:
-        # Tìm employee với employee_id = username và password cũng là employee_id
-        if username == password:
-            try:
+        try:
+            # Chỉ kiểm tra employee khi password và username giống nhau (xử lý login lần đầu)
+            # Điều này đảm bảo người dùng không thể sử dụng ID nhân viên để đăng nhập sau khi đã đổi mật khẩu
+            if username == password:
                 # Kiểm tra xem có employee với ID này không
                 employee = Employee.objects.get(employee_id=username)
                 if employee.username:
-                    # Nếu employee có liên kết với user, lấy user đó
-                    user = employee.username
+                    # Nếu employee có liên kết với user, chỉ tiếp tục nếu user chưa đổi mật khẩu
+                    user_obj = employee.username
+                    # Kiểm tra xem mật khẩu ban đầu có phải là employee_id không
+                    if user_obj.check_password(username):
+                        user = user_obj
                 else:
                     # Nếu employee chưa có user, tạo mới
                     user_obj = User.objects.create_user(
@@ -107,9 +111,9 @@ def login(request):
                     employee.username = user_obj
                     employee.save()
                     user = user_obj
-            except Employee.DoesNotExist:
-                # Không tìm thấy employee có ID này
-                pass
+        except Employee.DoesNotExist:
+            # Không tìm thấy employee có ID này
+            pass
     
     if not user:
         return Response({
@@ -150,6 +154,13 @@ def login(request):
         print(f"Lỗi khi lấy thông tin employee: {str(e)}")
         employee_data = None
 
+    # Serialize UserProfile để gửi về client
+    user_profile_data = {
+        'id': user_profile.id,
+        'is_admin': user_profile.is_admin,
+        'is_user': user_profile.is_user
+    }
+
     return Response({
         'success': True,
         'token': token.key,
@@ -157,9 +168,64 @@ def login(request):
             'id': user.id,
             'username': user.username,
             'is_staff': user.is_staff,
-            'is_superuser': user.is_superuser
+            'is_superuser': user.is_superuser,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'email': user.email
         },
+        'user_profile': user_profile_data,
         'employee': employee_data
+    })
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def change_password(request):
+    """API endpoint xử lý đổi mật khẩu"""
+    user = request.user
+    old_password = request.data.get('old_password')
+    new_password = request.data.get('new_password')
+    
+    if not old_password or not new_password:
+        return Response({
+            'success': False,
+            'error': 'Vui lòng cung cấp mật khẩu cũ và mật khẩu mới'
+        }, status=400)
+    
+    # Kiểm tra mật khẩu cũ
+    if not user.check_password(old_password):
+        return Response({
+            'success': False,
+            'error': 'Mật khẩu hiện tại không chính xác'
+        }, status=400)
+    
+    # Đặt mật khẩu mới
+    user.set_password(new_password)
+    user.save()
+    
+    # Xóa tất cả các token hiện tại để đảm bảo người dùng phải đăng nhập lại với mật khẩu mới
+    Token.objects.filter(user=user).delete()
+    
+    # Tạo token mới
+    token, _ = Token.objects.get_or_create(user=user)
+    
+    # Buộc hết hạn các phiên làm việc Django
+    from django.contrib.sessions.models import Session
+    from django.contrib.auth import logout
+    
+    try:
+        # Xóa hết session nếu có thể để đảm bảo người dùng phải đăng nhập lại
+        for session in Session.objects.all():
+            session_data = session.get_decoded()
+            if session_data.get('_auth_user_id') == str(user.id):
+                session.delete()
+    except:
+        # Bỏ qua lỗi nếu xảy ra khi xử lý session
+        pass
+    
+    return Response({
+        'success': True,
+        'message': 'Đổi mật khẩu thành công. Vui lòng sử dụng mật khẩu mới để đăng nhập lại.',
+        'token': token.key
     })
 
 class DashboardViewSet(viewsets.ViewSet):
