@@ -18,7 +18,7 @@ import { supportApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 
 const NewTicketDialog = ({ open, onClose, onTicketCreated }) => {
-  const { getEmployeeId } = useAuth();
+  const { getEmployeeId, getUserInfo } = useAuth();
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -59,35 +59,147 @@ const NewTicketDialog = ({ open, onClose, onTicketCreated }) => {
       return;
     }
     
+    // Lấy thông tin người dùng
+    const userInfo = getUserInfo();
+    const employeeName = userInfo?.fullName || '';
+    
+    // Tạo một ID tạm thời để theo dõi ticket trong trường hợp có lỗi server
+    const tempId = Date.now();
+    
+    // Tạo dữ liệu ticket tạm thời để có thể hiển thị ngay trong UI nếu cần
+    const temporaryTicket = {
+      id: tempId,
+      title: formData.title,
+      description: formData.description,
+      priority: formData.priority,
+      category: formData.category,
+      employee: employeeId, 
+      employee_name: employeeName,
+      status: 'open',
+      created_at: new Date().toISOString(),
+      _isTemporary: true
+    };
+    
     try {
-      // In ra console để debug
-      console.log("Creating ticket with employee ID:", employeeId);
-      
-      const response = await supportApi.createTicket({
+      // Chuẩn bị dữ liệu ticket
+      const ticketData = {
         ...formData,
         employee: employeeId,      // Gán employee ID
-        assigned_to: 1             // Mặc định gán cho admin với ID là 1
-      });
+        assigned_to: 1,            // Mặc định gán cho admin với ID là 1
+        status: 'open',            // Đặt trạng thái mặc định
+        created_at: new Date().toISOString() // Thêm thời gian tạo
+      };
       
-      console.log("Ticket created successfully:", response.data);
+      // In ra console để debug
+      console.log("Creating ticket with data:", ticketData);
       
-      // Reset form
-      setFormData({
-        title: '',
-        description: '',
-        priority: 'medium',
-        category: ''
-      });
+      // Gửi yêu cầu tạo ticket lên server
+      const response = await supportApi.createTicket(ticketData);
       
-      // Gọi callback với dữ liệu ticket mới
-      onTicketCreated(response.data);
+      // Kiểm tra response
+      if (response && response.data) {
+        console.log("Ticket created successfully:", response.data);
+        
+        // Tạo đối tượng ticket với thông tin đầy đủ
+        const createdTicket = {
+          ...response.data,
+          employee_name: employeeName, // Thêm tên nhân viên
+          status: response.data.status || 'open',
+          created_at: response.data.created_at || new Date().toISOString()
+        };
+        
+        // Thêm vào danh sách cache cho các trường hợp fallback
+        try {
+          const cachedTickets = JSON.parse(localStorage.getItem('cached_tickets') || '[]');
+          cachedTickets.unshift(createdTicket); // Thêm vào đầu mảng
+          localStorage.setItem('cached_tickets', JSON.stringify(cachedTickets));
+        } catch (cacheErr) {
+          console.error('Lỗi khi cập nhật cache tickets:', cacheErr);
+        }
+        
+        // Reset form
+        setFormData({
+          title: '',
+          description: '',
+          priority: 'medium',
+          category: ''
+        });
+        
+        // Gọi callback với dữ liệu ticket mới
+        onTicketCreated(createdTicket);
+      } else {
+        throw new Error('Không nhận được dữ liệu từ server');
+      }
     } catch (err) {
       console.error('Lỗi khi tạo ticket:', err);
-      // In chi tiết lỗi để debug
+      
+      // Xử lý lỗi cụ thể từ server
       if (err.response) {
         console.error('Chi tiết lỗi từ server:', err.response.data);
+        
+        if (err.response.status === 401) {
+          setError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+        } else if (err.response.status === 500) {
+          setError('Máy chủ đang gặp sự cố. Đã lưu yêu cầu hỗ trợ của bạn.');
+          
+          // Thêm vào danh sách cache cho các trường hợp fallback
+          try {
+            const cachedTickets = JSON.parse(localStorage.getItem('cached_tickets') || '[]');
+            cachedTickets.unshift(temporaryTicket); // Thêm vào đầu mảng
+            localStorage.setItem('cached_tickets', JSON.stringify(cachedTickets));
+          } catch (cacheErr) {
+            console.error('Lỗi khi cập nhật cache tickets:', cacheErr);
+          }
+          
+          // Reset form
+          setFormData({
+            title: '',
+            description: '',
+            priority: 'medium',
+            category: ''
+          });
+          
+          // Gọi callback với dữ liệu ticket tạm để hiển thị trong UI
+          onTicketCreated(temporaryTicket);
+          
+          // Đóng dialog và kết thúc xử lý
+          onClose();
+          return;
+        } else {
+          setError(`Lỗi khi tạo yêu cầu: ${err.response.data.message || 'Vui lòng thử lại sau.'}`);
+        }
+      } else if (err.request) {
+        setError('Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng.');
+        
+        // Sử dụng ticket tạm thời trong trường hợp không có kết nối
+        try {
+          const cachedTickets = JSON.parse(localStorage.getItem('cached_tickets') || '[]');
+          cachedTickets.unshift(temporaryTicket); // Thêm vào đầu mảng
+          localStorage.setItem('cached_tickets', JSON.stringify(cachedTickets));
+        } catch (cacheErr) {
+          console.error('Lỗi khi cập nhật cache tickets:', cacheErr);
+        }
+        
+        // Reset form
+        setFormData({
+          title: '',
+          description: '',
+          priority: 'medium',
+          category: ''
+        });
+        
+        // Gọi callback với dữ liệu ticket tạm để hiển thị trong UI
+        onTicketCreated({
+          ...temporaryTicket,
+          _offlineCreated: true
+        });
+        
+        // Đóng dialog và kết thúc xử lý
+        onClose();
+        return;
+      } else {
+        setError('Có lỗi xảy ra khi tạo yêu cầu hỗ trợ. Vui lòng thử lại sau.');
       }
-      setError('Có lỗi xảy ra khi tạo yêu cầu hỗ trợ. Vui lòng thử lại sau.');
     } finally {
       setLoading(false);
     }

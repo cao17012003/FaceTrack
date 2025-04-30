@@ -62,6 +62,7 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
             # Nhân viên chỉ có thể xem tickets của họ
             try:
                 employee = Employee.objects.get(user=user)
+                logger.info(f"User {user.username} đang truy cập tickets với employee ID: {employee.employee_id}")
                 queryset = SupportTicket.objects.filter(employee=employee)
                 
                 # Lọc theo trạng thái nếu được chỉ định
@@ -69,10 +70,13 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
                 if status_filter:
                     queryset = queryset.filter(status=status_filter)
                 
+                logger.info(f"Tìm thấy {queryset.count()} tickets của nhân viên {employee.employee_id}")
                 return queryset
             except Employee.DoesNotExist:
+                logger.warning(f"Không tìm thấy Employee cho user: {user.username}")
                 return SupportTicket.objects.none()
         except UserProfile.DoesNotExist:
+            logger.warning(f"Không tìm thấy UserProfile cho user: {user.username}")
             return SupportTicket.objects.none()
     
     def perform_create(self, serializer):
@@ -267,35 +271,85 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'], name="my_tickets", url_path="my_tickets", permission_classes=[permissions.AllowAny])
     def my_tickets(self, request):
-        """Lấy tickets của nhân viên hiện tại"""
+        """Lấy tickets của nhân viên hiện tại (Giữ lại cho khả năng tương thích ngược)"""
         user = request.user
+        logger.info(f"User requesting my_tickets (legacy endpoint): {user}")
         
-        if not user.is_authenticated:
-            # Trả về danh sách rỗng thay vì lỗi xác thực
+        if not user or not user.is_authenticated:
+            # Trả về thông báo lỗi xác thực
             logger.warning("Người dùng không xác thực truy cập my_tickets")
-            return Response([])
+            return Response({
+                "error": "Bạn cần đăng nhập để xem danh sách hỗ trợ",
+                "detail": "Unauthorized access"
+            }, status=status.HTTP_401_UNAUTHORIZED)
         
         try:
-            # Tìm employee liên kết với user hiện tại
-            try:
-                employee = Employee.objects.get(user=user)
-            except Employee.DoesNotExist:
-                logger.warning(f"Không tìm thấy employee cho user: {user.username}")
-                return Response([])
-                
-            # Lấy tickets của employee
-            tickets = SupportTicket.objects.filter(employee=employee)
+            # Sử dụng lại logic từ get_queryset
+            queryset = self.get_queryset()
             
-            # Lọc theo trạng thái nếu được chỉ định
-            status_filter = request.query_params.get('status')
-            if status_filter:
-                tickets = tickets.filter(status=status_filter)
+            # Lọc theo trạng thái nếu được chỉ định (đã được xử lý trong get_queryset)
+            serializer = SupportTicketListSerializer(queryset, many=True, context={'request': request})
             
-            serializer = SupportTicketListSerializer(tickets, many=True, context={'request': request})
+            logger.info(f"Endpoint my_tickets trả về {queryset.count()} tickets")
             return Response(serializer.data)
         except Exception as e:
-            logger.error(f"Lỗi khi lấy tickets: {str(e)}")
-            return Response([])
+            logger.error(f"Lỗi khi lấy tickets từ my_tickets: {str(e)}")
+            return Response({
+                "error": "Có lỗi xảy ra khi xử lý yêu cầu",
+                "detail": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def retrieve(self, request, *args, **kwargs):
+        """Lấy chi tiết của một ticket theo ID"""
+        try:
+            instance = self.get_object()
+            
+            # Kiểm tra quyền truy cập - Admin hoặc chủ sở hữu
+            user = request.user
+            if user and user.is_authenticated:
+                try:
+                    user_profile = UserProfile.objects.get(user=user)
+                    
+                    # Admin có thể xem tất cả tickets
+                    if user_profile.is_admin:
+                        serializer = self.get_serializer(instance)
+                        return Response(serializer.data)
+                    
+                    # Nhân viên chỉ có thể xem tickets của họ
+                    try:
+                        employee = Employee.objects.get(user=user)
+                        if instance.employee == employee:
+                            serializer = self.get_serializer(instance)
+                            return Response(serializer.data)
+                        else:
+                            # Không có quyền xem ticket của người khác
+                            return Response(
+                                {"error": "Bạn không có quyền xem yêu cầu hỗ trợ này"},
+                                status=status.HTTP_403_FORBIDDEN
+                            )
+                    except Employee.DoesNotExist:
+                        logger.warning(f"Không tìm thấy employee cho user: {user.username}")
+                        return Response(
+                            {"error": "Không tìm thấy thông tin nhân viên"},
+                            status=status.HTTP_403_FORBIDDEN
+                        )
+                except UserProfile.DoesNotExist:
+                    return Response(
+                        {"error": "Không tìm thấy thông tin người dùng"},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+            else:
+                # Người dùng chưa đăng nhập
+                return Response(
+                    {"error": "Vui lòng đăng nhập để xem chi tiết yêu cầu hỗ trợ"},
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
+        except Exception as e:
+            logger.error(f"Lỗi khi lấy chi tiết ticket: {str(e)}")
+            return Response(
+                {"error": "Có lỗi xảy ra khi xử lý yêu cầu"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class MessageViewSet(viewsets.ModelViewSet):
     queryset = Message.objects.all()
@@ -364,16 +418,39 @@ class MessageViewSet(viewsets.ModelViewSet):
         
         # Kiểm tra xem user có tồn tại và đã xác thực không
         if user and user.is_authenticated:
+            logger.info(f"Người dùng {user.username} đang tạo tin nhắn mới")
+            
+            # Lưu với sender là user hiện tại
             serializer.save(sender=user)
             
             # Kiểm tra quyền và thiết lập is_from_admin
             try:
                 user_profile = UserProfile.objects.get(user=user)
-                if user_profile.is_admin:
-                    serializer.instance.is_from_admin = True
-                    serializer.instance.save()
+                is_admin = user_profile.is_admin
+                logger.info(f"User profile found: Admin={is_admin}")
+                
+                # Cập nhật trạng thái is_from_admin dựa trên quyền
+                serializer.instance.is_from_admin = is_admin
+                serializer.instance.save()
+                
+                # Nếu là tin nhắn từ admin, cập nhật trạng thái ticket thành 'in_progress' nếu đang là 'open'
+                if is_admin and serializer.instance.ticket.status == 'open':
+                    logger.info(f"Admin đang phản hồi ticket #{serializer.instance.ticket.id}, cập nhật trạng thái thành 'in_progress'")
+                    ticket = serializer.instance.ticket
+                    ticket.status = 'in_progress'
+                    ticket.save()
             except UserProfile.DoesNotExist:
-                pass
+                logger.warning(f"Không tìm thấy profile cho user: {user.username}")
+                serializer.instance.is_from_admin = False
+                serializer.instance.save()
+            
+            # Log thông tin tin nhắn đã được tạo
+            logger.info(f"Tin nhắn đã được tạo cho ticket #{serializer.instance.ticket.id}, ID={serializer.instance.id}")
         else:
             # Trường hợp không có người dùng xác thực, chỉ lưu dữ liệu như đã cung cấp
+            logger.warning("Đang tạo tin nhắn mà không có người dùng xác thực")
             serializer.save()
+            
+            # Để đảm bảo an toàn, gán is_from_admin=False
+            serializer.instance.is_from_admin = False
+            serializer.instance.save()

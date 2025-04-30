@@ -27,7 +27,7 @@ import ErrorHandler from '../components/support/ErrorHandler';
 
 const SupportPage = () => {
   const theme = useTheme();
-  const { isAdmin } = useAuth();
+  const { isAdmin, currentUser, getUserInfo, getEmployeeId } = useAuth();
   const [loading, setLoading] = useState(true);
   const [tickets, setTickets] = useState([]);
   const [selectedTicket, setSelectedTicket] = useState(null);
@@ -60,21 +60,39 @@ const SupportPage = () => {
       }
       
       let response;
-      if (isAdmin()) {
-        // Admin lấy tất cả ticket và lọc theo tab đang chọn
-        const status = tabValue === 0 ? '' : 
+      // Sử dụng cùng một API cho cả admin và user thông thường
+      // Backend sẽ tự động lọc dựa trên thông tin người dùng
+      const status = tabValue === 0 ? '' : 
                      tabValue === 1 ? 'open' : 
                      tabValue === 2 ? 'in_progress' : 
                      tabValue === 3 ? 'resolved' : 'closed';
-        
+      
+      if (isAdmin()) {
+        // Đối với admin, sử dụng getAllTickets với filter theo tab
         response = await supportApi.getAllTickets({ status });
       } else {
-        // Nhân viên chỉ lấy ticket của họ
-        response = await supportApi.getMyTickets();
+        // Đối với nhân viên thường, sử dụng getMyTickets
+        // (API getMyTickets đã được sửa để gọi đến /tickets/ thay vì /tickets/my_tickets/)
+        console.log("Đang tải danh sách ticket của người dùng");
+        response = await supportApi.getMyTickets({ status });  // Truyền status luôn cho user thường
       }
       
       // Kiểm tra response có tồn tại không
       if (response && response.data) {
+        console.log(`Đã tải ${response.data.length} tickets thành công`, response.data);
+        
+        // Hiển thị thông báo nếu đang dùng dữ liệu dự phòng
+        if (response._fromFallback) {
+          console.log(`Đang sử dụng dữ liệu dự phòng: ${response._source || 'unknown'}`);
+          if (response._source === 'empty' && response.data.length === 0) {
+            // Nếu không có dữ liệu và đang sử dụng fallback rỗng, hiển thị thông báo
+            setError("Không thể kết nối đến máy chủ. Hiển thị giao diện trống.");
+          } else {
+            setError("Đang hiển thị dữ liệu dự phòng. Máy chủ hiện không khả dụng.");
+          }
+        }
+        
+        // Không cần lọc tickets nữa vì backend đã xử lý việc này
         setTickets(response.data);
         
         // Nếu chưa chọn ticket nào và có ticket trong danh sách, chọn ticket đầu tiên
@@ -88,24 +106,38 @@ const SupportPage = () => {
             if (detailResponse && detailResponse.data) {
               console.log("Chi tiết ticket đã tải thành công:", detailResponse.data);
               setSelectedTicket(detailResponse.data);
+              
+              // Hiển thị thông báo nếu đang dùng dữ liệu dự phòng
+              if (detailResponse.data._fromFallback) {
+                console.log(`Đang sử dụng dữ liệu dự phòng cho chi tiết ticket: ${detailResponse.data._source || 'unknown'}`);
+                setError("Không thể tải đầy đủ thông tin từ máy chủ. Hiển thị dữ liệu có sẵn.");
+              }
             } else {
               console.error("Không nhận được dữ liệu chi tiết ticket hợp lệ");
               setError("Không thể tải chi tiết yêu cầu hỗ trợ. Vui lòng thử lại sau.");
             }
           } catch (detailErr) {
             console.error("Error loading ticket details:", detailErr);
-            // Chỉ hiển thị thông báo lỗi cho người dùng khi cần thiết
-            if (!isAdmin()) {
-              setError("Không thể tải chi tiết yêu cầu hỗ trợ. Vui lòng thử lại sau hoặc tạo yêu cầu mới.");
-              
-              // Lưu mã lỗi nếu có
-              if (detailErr.response) {
-                setErrorCode(detailErr.response.status);
+            // Kiểm tra nếu lỗi là 403 Forbidden - không có quyền xem ticket này
+            if (detailErr.response && detailErr.response.status === 403) {
+              setError("Bạn không có quyền xem yêu cầu hỗ trợ này.");
+              setSelectedTicket(null);
+              setErrorCode(403);
+            } else {
+              // Chỉ hiển thị thông báo lỗi cho người dùng khi cần thiết
+              if (!isAdmin()) {
+                setError("Không thể tải chi tiết yêu cầu hỗ trợ. Vui lòng thử lại sau hoặc tạo yêu cầu mới.");
+                
+                // Lưu mã lỗi nếu có
+                if (detailErr.response) {
+                  setErrorCode(detailErr.response.status);
+                }
               }
             }
           }
         }
       } else {
+        console.warn("Không nhận được dữ liệu ticket từ server");
         setTickets([]);
       }
       
@@ -120,11 +152,18 @@ const SupportPage = () => {
       }
     } catch (err) {
       console.error('Lỗi khi tải danh sách ticket:', err);
-      setError('Có lỗi xảy ra khi tải danh sách hỗ trợ. Vui lòng thử lại sau.');
       
-      // Lưu mã lỗi nếu có
-      if (err.response) {
-        setErrorCode(err.response.status);
+      // Nếu lỗi là 403 Forbidden - không có quyền xem ticket
+      if (err.response && err.response.status === 403) {
+        setError("Bạn không có quyền xem danh sách yêu cầu hỗ trợ.");
+        setErrorCode(403);
+      } else {
+        setError('Có lỗi xảy ra khi tải danh sách hỗ trợ. Vui lòng thử lại sau.');
+        
+        // Lưu mã lỗi nếu có
+        if (err.response) {
+          setErrorCode(err.response.status);
+        }
       }
       
       setTickets([]);
@@ -179,8 +218,13 @@ const SupportPage = () => {
           } catch (err) {
             console.error("Lỗi khi tải chi tiết ticket đã chọn:", err);
             
-            // Không hiển thị lỗi cho người dùng vì đã có dữ liệu cơ bản
-            // setError("Không thể tải chi tiết yêu cầu hỗ trợ. Vui lòng thử lại sau.");
+            // Kiểm tra nếu lỗi là 403 Forbidden - không có quyền xem ticket này
+            if (err.response && err.response.status === 403) {
+              setError("Bạn không có quyền xem yêu cầu hỗ trợ này.");
+              setSelectedTicket(null); // Xóa ticket đã chọn
+              setErrorCode(403);
+              return;
+            }
             
             // Lưu mã lỗi nếu có
             if (err.response) {
@@ -215,6 +259,25 @@ const SupportPage = () => {
     try {
       // Nếu có dữ liệu ticket mới truyền vào, sử dụng nó trực tiếp
       if (newTicketData && newTicketData.id) {
+        // Lấy thông tin người dùng
+        const userInfo = getUserInfo();
+        
+        // Đầu tiên, tạo một object ticket tạm thời để hiển thị ngay lập tức
+        // Thêm ticket vào danh sách hiện tại ngay lập tức để người dùng thấy
+        const temporaryTicket = {
+          ...newTicketData,
+          status: newTicketData.status || 'open',
+          created_at: newTicketData.created_at || new Date().toISOString(),
+          employee_name: userInfo?.fullName || 'Bạn',
+          _isTemporary: true
+        };
+        
+        // Thêm vào danh sách tickets hiện tại để người dùng thấy ngay
+        setTickets(prevTickets => [temporaryTicket, ...prevTickets]);
+        
+        // Đặt ticket này làm ticket được chọn
+        setSelectedTicket(temporaryTicket);
+        
         try {
           // Lấy thông tin chi tiết của ticket mới tạo
           console.log(`Đang tải chi tiết ticket mới tạo: ${newTicketData.id}`);
@@ -227,38 +290,16 @@ const SupportPage = () => {
               detailResponse.data._source || 'unknown');
           }
           
-          // Cập nhật danh sách tickets
-          let response;
-          if (isAdmin()) {
-            response = await supportApi.getAllTickets({});
-          } else {
-            response = await supportApi.getMyTickets();
-          }
-          
-          if (response && response.data) {
-            setTickets(response.data);
-            
-            // Kiểm tra nếu đây là dữ liệu dự phòng
-            if (response._fromFallback) {
-              console.log("Đang sử dụng danh sách ticket từ cache");
-              
-              // Hiển thị thông báo cho người dùng
-              setError("Đang hiển thị dữ liệu đã lưu trong bộ nhớ. Một số thông tin có thể không phải là mới nhất.");
-            }
-          }
-          
-          // Hiển thị ticket chi tiết
+          // Cập nhật selectedTicket với dữ liệu đầy đủ từ server
           setSelectedTicket(detailResponse.data);
+          
+          // Tải lại tất cả danh sách ticket để có dữ liệu mới nhất
+          await fetchTickets();
         } catch (detailErr) {
           console.error("Error loading ticket details:", detailErr);
           
-          // Hiển thị ticket mặc định với thông tin từ newTicketData
-          console.log("Sử dụng thông tin cơ bản từ ticket mới tạo");
-          setSelectedTicket({
-            ...newTicketData,
-            _fromFallback: true,
-            _source: 'creation'
-          });
+          // Vẫn giữ lại ticket tạm thời đã thêm vào danh sách
+          // Không cần làm gì vì danh sách đã được cập nhật
           
           // Hiển thị thông báo lỗi
           setError("Không thể tải đầy đủ thông tin. Hiển thị dữ liệu cơ bản.");
@@ -269,42 +310,8 @@ const SupportPage = () => {
           }
         }
       } else {
-        // Trường hợp cũ: tìm ticket mới nhất nếu không có dữ liệu truyền vào
-        let response;
-        try {
-          if (isAdmin()) {
-            response = await supportApi.getAllTickets({});
-          } else {
-            response = await supportApi.getMyTickets();
-          }
-          
-          if (response && response.data) {
-            setTickets(response.data);
-            
-            // Tự động chọn ticket mới nhất vừa tạo (ticket có created_at gần nhất)
-            if (response.data.length > 0) {
-              const sortedTickets = [...response.data].sort((a, b) => 
-                new Date(b.created_at) - new Date(a.created_at)
-              );
-              
-              // Chọn ticket mới nhất
-              const newestTicket = sortedTickets[0];
-              
-              // Lấy thông tin chi tiết của ticket mới nhất để hiển thị
-              try {
-                const detailResponse = await supportApi.getTicketById(newestTicket.id);
-                setSelectedTicket(detailResponse.data);
-              } catch (detailErr) {
-                console.error("Không thể tải chi tiết ticket mới nhất:", detailErr);
-                // Sử dụng dữ liệu cơ bản
-                setSelectedTicket(newestTicket);
-              }
-            }
-          }
-        } catch (listErr) {
-          console.error("Không thể tải danh sách ticket:", listErr);
-          setError("Không thể tải danh sách yêu cầu hỗ trợ. Vui lòng làm mới trang.");
-        }
+        // Trường hợp không có dữ liệu ticket mới trả về
+        await fetchTickets();
       }
     } catch (err) {
       console.error('Lỗi khi tải lại danh sách ticket:', err);
@@ -314,6 +321,9 @@ const SupportPage = () => {
       if (err.response) {
         setErrorCode(err.response.status);
       }
+      
+      // Vẫn tải lại danh sách để cập nhật mới nhất
+      await fetchTickets();
     } finally {
       setLoading(false);
       setCreateDialogOpen(false);
@@ -466,7 +476,11 @@ const SupportPage = () => {
           onCreateNewTicket={handleCreateTicket}
         />
       ) : tickets.length === 0 ? (
-        <EmptySupportState onCreateTicket={handleCreateTicket} />
+        <EmptySupportState 
+          onCreateTicket={handleCreateTicket} 
+          isOffline={!navigator.onLine} 
+          hasServerError={error && error.includes('máy chủ')}
+        />
       ) : (
         <Grid container spacing={3}>
           <Grid item xs={12} md={selectedTicket ? 4 : 12}>

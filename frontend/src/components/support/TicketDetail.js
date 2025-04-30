@@ -93,28 +93,28 @@ const TicketDetail = ({ ticket, onTicketUpdated, isAdmin }) => {
   const [retryingPending, setRetryingPending] = useState(false);
   const [fromFallback, setFromFallback] = useState(false);
   const chatEndRef = useRef(null);
-  
+
   // Fetch messages when ticket changes
   useEffect(() => {
     if (ticket && ticket.id) {
       fetchMessages();
       setSelectedStatus(ticket.status);
-      
+
       // Kiểm tra nếu dữ liệu ticket đến từ fallback
       if (ticket._fromFallback) {
         setFromFallback(true);
-        
+
         // Hiển thị thông báo
         setError('Đang hiển thị dữ liệu dự phòng do không thể kết nối đến máy chủ. Một số tính năng có thể bị hạn chế.');
       } else {
         setFromFallback(false);
       }
-      
+
       // Tải tin nhắn đang chờ từ localStorage
       loadPendingMessages();
     }
   }, [ticket]);
-  
+
   // Auto-refresh messages every 30 seconds
   useEffect(() => {
     if (ticket && ticket.id) {
@@ -122,59 +122,59 @@ const TicketDetail = ({ ticket, onTicketUpdated, isAdmin }) => {
         fetchMessages(false); // silent refresh (no loading indicator)
         loadPendingMessages(); // refresh pending messages
       }, 30000); // refresh every 30 seconds
-      
+
       return () => {
         clearInterval(refreshInterval);
       };
     }
   }, [ticket]);
-  
+
   // Scroll to bottom on messages update
   useEffect(() => {
     scrollToBottom();
   }, [messages, pendingMessages]);
-  
+
   // Tải tin nhắn đang chờ từ localStorage
   const loadPendingMessages = () => {
     if (!ticket || !ticket.id) return;
-    
+
     try {
       const allPendingMessages = JSON.parse(localStorage.getItem('pendingMessages') || '[]');
-      
+
       // Lọc các tin nhắn thuộc về ticket hiện tại
       const ticketPendingMessages = allPendingMessages.filter(
         msg => msg.ticket === ticket.id
       );
-      
+
       if (ticketPendingMessages.length > 0) {
         console.log(`Tìm thấy ${ticketPendingMessages.length} tin nhắn đang chờ cho ticket ${ticket.id}`);
       }
-      
+
       setPendingMessages(ticketPendingMessages);
     } catch (err) {
       console.error('Lỗi khi tải tin nhắn đang chờ:', err);
       setPendingMessages([]);
     }
   };
-  
+
   // Thử gửi lại tất cả tin nhắn đang chờ
   const retryPendingMessages = async () => {
     if (pendingMessages.length === 0) return;
-    
+
     setRetryingPending(true);
-    
+
     try {
       const result = await supportApi.retrySendPendingMessages();
-      
+
       console.log('Kết quả gửi lại tin nhắn:', result);
-      
+
       if (result.sent > 0) {
         setSuccess(`Đã gửi thành công ${result.sent}/${result.total} tin nhắn đang chờ.`);
-        
+
         // Tải lại tin nhắn và danh sách tin nhắn đang chờ
         fetchMessages();
         loadPendingMessages();
-        
+
         // Cập nhật ticket
         onTicketUpdated();
       } else if (result.total > 0) {
@@ -187,12 +187,12 @@ const TicketDetail = ({ ticket, onTicketUpdated, isAdmin }) => {
       setRetryingPending(false);
     }
   };
-  
+
   const fetchMessages = async (showLoading = true) => {
     if (showLoading) {
       setLoading(true);
     }
-    
+
     try {
       // Kiểm tra ticket có hợp lệ không
       if (!ticket || !ticket.id) {
@@ -203,14 +203,14 @@ const TicketDetail = ({ ticket, onTicketUpdated, isAdmin }) => {
         }
         return;
       }
-      
+
       console.log(`Đang tải tin nhắn cho ticket ID: ${ticket.id}`);
       const response = await supportApi.getMessages(ticket.id);
-      
+
       if (response && response.data) {
         console.log(`Đã tải ${response.data.length} tin nhắn thành công`);
         setMessages(response.data);
-        
+
         // Kiểm tra nếu dữ liệu đến từ fallback
         if (response._fromFallback) {
           console.log('Dữ liệu tin nhắn đến từ fallback');
@@ -224,7 +224,7 @@ const TicketDetail = ({ ticket, onTicketUpdated, isAdmin }) => {
       }
     } catch (err) {
       console.error('Lỗi khi tải tin nhắn:', err);
-      
+
       // Hiển thị thông báo lỗi chi tiết hơn
       if (err.response) {
         console.error('Chi tiết lỗi từ server:', err.response.data);
@@ -242,7 +242,7 @@ const TicketDetail = ({ ticket, onTicketUpdated, isAdmin }) => {
       } else {
         setError('Có lỗi xảy ra khi tải tin nhắn. Vui lòng thử lại sau.');
       }
-      
+
       // Đặt danh sách tin nhắn về trống để tránh hiển thị dữ liệu cũ
       setMessages([]);
     } finally {
@@ -251,22 +251,22 @@ const TicketDetail = ({ ticket, onTicketUpdated, isAdmin }) => {
       }
     }
   };
-  
+
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
-  
+
   const handleSendMessage = async () => {
     if (!message.trim()) return;
-    
+
     setSending(true);
     setError(null);
-    
+
     try {
       // Kiểm tra đầu vào và log
       console.log("Đang gửi tin nhắn đến ticket:", ticket.id);
       console.log("Dữ liệu người dùng hiện tại:", currentUser);
-      
+
       // Kiểm tra người dùng có đủ thông tin không
       if (!currentUser || !currentUser.user || !currentUser.user.id) {
         console.error("Không có thông tin người dùng hợp lệ:", currentUser);
@@ -274,7 +274,7 @@ const TicketDetail = ({ ticket, onTicketUpdated, isAdmin }) => {
         setSending(false);
         return;
       }
-      
+
       // Kiểm tra ticket có hợp lệ không
       if (!ticket || !ticket.id) {
         console.error("Dữ liệu ticket không hợp lệ:", ticket);
@@ -282,33 +282,33 @@ const TicketDetail = ({ ticket, onTicketUpdated, isAdmin }) => {
         setSending(false);
         return;
       }
-      
+
       // Tạo dữ liệu gửi tin nhắn
       const messageData = {
         ticket: ticket.id,
         content: message,
         sender: currentUser.user.id
       };
-      
+
       console.log("Dữ liệu tin nhắn sẽ gửi:", messageData);
-      
+
       // Gửi tin nhắn
       const response = await supportApi.sendMessage(messageData);
-      
+
       console.log("Kết quả gửi tin nhắn:", response);
-      
+
       setMessage('');
-      
+
       // Chờ một khoảng thời gian ngắn trước khi tải lại tin nhắn
       setTimeout(() => {
         fetchMessages();
         loadPendingMessages();
         onTicketUpdated();
       }, 300);
-      
+
     } catch (err) {
       console.error('Lỗi khi gửi tin nhắn:', err);
-      
+
       // Hiển thị thông báo lỗi chi tiết hơn
       if (err.response) {
         // Lỗi từ server
@@ -339,16 +339,16 @@ const TicketDetail = ({ ticket, onTicketUpdated, isAdmin }) => {
       setSending(false);
     }
   };
-  
+
   const handleStatusChange = async (e) => {
     const newStatus = e.target.value;
     setSelectedStatus(newStatus);
-    
+
     try {
       await supportApi.changeTicketStatus(ticket.id, newStatus);
       setSuccess(`Đã chuyển trạng thái ticket thành ${getStatusText(newStatus)}`);
       onTicketUpdated();
-      
+
       // Ẩn thông báo thành công sau 3 giây
       setTimeout(() => {
         setSuccess(null);
@@ -358,7 +358,7 @@ const TicketDetail = ({ ticket, onTicketUpdated, isAdmin }) => {
       setError('Có lỗi xảy ra khi thay đổi trạng thái ticket. Vui lòng thử lại sau.');
     }
   };
-  
+
   // Hiển thị tin nhắn đang chờ
   const renderPendingMessageItem = (msg, index) => {
     return (
@@ -388,14 +388,14 @@ const TicketDetail = ({ ticket, onTicketUpdated, isAdmin }) => {
             <WarningIcon fontSize="small" sx={{ mr: 0.5 }} />
             Đang chờ gửi
           </Typography>
-          
+
           <Typography variant="body1">
             {msg.content}
           </Typography>
-          
-          <Typography 
-            variant="caption" 
-            sx={{ 
+
+          <Typography
+            variant="caption"
+            sx={{
               display: 'block',
               textAlign: 'right',
               mt: 0.5,
@@ -405,9 +405,9 @@ const TicketDetail = ({ ticket, onTicketUpdated, isAdmin }) => {
             {msg.createdAt ? format(new Date(msg.createdAt), 'dd/MM/yyyy HH:mm') : ''}
           </Typography>
         </Box>
-        
-        <Avatar 
-          sx={{ 
+
+        <Avatar
+          sx={{
             bgcolor: 'warning.main',
             ml: 1
           }}
@@ -417,11 +417,11 @@ const TicketDetail = ({ ticket, onTicketUpdated, isAdmin }) => {
       </Box>
     );
   };
-  
+
   const renderMessageItem = (msg) => {
     const isFromAdmin = msg.is_from_admin;
     const isCurrentUser = msg.sender === currentUser?.id;
-    
+
     return (
       <Box
         sx={{
@@ -432,8 +432,8 @@ const TicketDetail = ({ ticket, onTicketUpdated, isAdmin }) => {
         key={msg.id}
       >
         {isFromAdmin && (
-          <Avatar 
-            sx={{ 
+          <Avatar
+            sx={{
               bgcolor: 'primary.main',
               mr: 1
             }}
@@ -441,7 +441,7 @@ const TicketDetail = ({ ticket, onTicketUpdated, isAdmin }) => {
             <AdminIcon />
           </Avatar>
         )}
-        
+
         <Box
           sx={{
             maxWidth: '70%',
@@ -456,14 +456,14 @@ const TicketDetail = ({ ticket, onTicketUpdated, isAdmin }) => {
           <Typography variant="subtitle2">
             {msg.sender_name || 'Unknown'}
           </Typography>
-          
+
           <Typography variant="body1">
             {msg.content}
           </Typography>
-          
-          <Typography 
-            variant="caption" 
-            sx={{ 
+
+          <Typography
+            variant="caption"
+            sx={{
               display: 'block',
               textAlign: 'right',
               mt: 0.5,
@@ -473,10 +473,10 @@ const TicketDetail = ({ ticket, onTicketUpdated, isAdmin }) => {
             {msg.created_at ? format(new Date(msg.created_at), 'dd/MM/yyyy HH:mm') : ''}
           </Typography>
         </Box>
-        
+
         {!isFromAdmin && (
-          <Avatar 
-            sx={{ 
+          <Avatar
+            sx={{
               bgcolor: 'success.main',
               ml: 1
             }}
@@ -487,21 +487,21 @@ const TicketDetail = ({ ticket, onTicketUpdated, isAdmin }) => {
       </Box>
     );
   };
-  
+
   if (!ticket) return null;
-  
+
   return (
     <Paper sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Typography variant="h6">{ticket.title}</Typography>
-          <Chip 
-            icon={getStatusIcon(ticket.status)} 
-            label={getStatusText(ticket.status)} 
+          <Chip
+            icon={getStatusIcon(ticket.status)}
+            label={getStatusText(ticket.status)}
             color={getStatusColor(ticket.status)}
           />
         </Box>
-        
+
         <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1, color: 'text.secondary' }}>
           <Typography variant="body2">
             ID: {ticket.id}
@@ -510,19 +510,19 @@ const TicketDetail = ({ ticket, onTicketUpdated, isAdmin }) => {
             Tạo: {ticket.created_at ? format(new Date(ticket.created_at), 'dd/MM/yyyy HH:mm') : ''}
           </Typography>
         </Box>
-        
+
         {fromFallback && (
           <Alert severity="warning" sx={{ mt: 2 }}>
             Đang hiển thị dữ liệu dự phòng. Một số tính năng có thể không khả dụng do lỗi kết nối.
           </Alert>
         )}
-        
+
         <Divider sx={{ my: 1.5 }} />
-        
+
         <Typography variant="body1">
           {ticket.description}
         </Typography>
-        
+
         {isAdmin && (
           <Box sx={{ mt: 2 }}>
             <FormControl variant="outlined" size="small" sx={{ minWidth: 200 }}>
@@ -541,7 +541,7 @@ const TicketDetail = ({ ticket, onTicketUpdated, isAdmin }) => {
             </FormControl>
           </Box>
         )}
-        
+
         {(error || success) && (
           <Box sx={{ mt: 2 }}>
             {error && (
@@ -557,9 +557,9 @@ const TicketDetail = ({ ticket, onTicketUpdated, isAdmin }) => {
           </Box>
         )}
       </Box>
-      
+
       <Divider />
-      
+
       {pendingMessages.length > 0 && (
         <Box sx={{ p: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: 'warning.light' }}>
           <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', color: 'warning.contrastText' }}>
@@ -579,11 +579,11 @@ const TicketDetail = ({ ticket, onTicketUpdated, isAdmin }) => {
           </Button>
         </Box>
       )}
-      
-      <Box 
-        sx={{ 
-          flexGrow: 1, 
-          p: 2, 
+
+      <Box
+        sx={{
+          flexGrow: 1,
+          p: 2,
           overflowY: 'auto',
           display: 'flex',
           flexDirection: 'column',
@@ -596,21 +596,21 @@ const TicketDetail = ({ ticket, onTicketUpdated, isAdmin }) => {
             <CircularProgress />
           </Box>
         ) : messages.length === 0 && pendingMessages.length === 0 ? (
-          <Box sx={{ 
-            display: 'flex', 
-            flexDirection: 'column', 
-            justifyContent: 'center', 
-            alignItems: 'center', 
-            height: '100%', 
-            color: 'text.secondary' 
+          <Box sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'center',
+            height: '100%',
+            color: 'text.secondary'
           }}>
             <ChatIcon sx={{ fontSize: 60, color: 'text.disabled', mb: 2 }} />
             <Typography align="center">
               Chưa có tin nhắn nào. Hãy gửi tin nhắn đầu tiên!
             </Typography>
             <Typography variant="caption" align="center" sx={{ mt: 1, maxWidth: '80%' }}>
-              {isAdmin 
-                ? 'Bạn có thể bắt đầu cuộc hội thoại với người dùng bằng cách gửi tin nhắn ở phía dưới.' 
+              {isAdmin
+                ? 'Bạn có thể bắt đầu cuộc hội thoại với người dùng bằng cách gửi tin nhắn ở phía dưới.'
                 : 'Hãy để lại tin nhắn mô tả chi tiết về vấn đề của bạn để nhân viên hỗ trợ có thể giúp đỡ bạn nhanh nhất.'}
             </Typography>
           </Box>
@@ -622,9 +622,9 @@ const TicketDetail = ({ ticket, onTicketUpdated, isAdmin }) => {
           </React.Fragment>
         )}
       </Box>
-      
+
       <Divider />
-      
+
       <Box sx={{ p: 2, display: 'flex', alignItems: 'center' }}>
         <TextField
           fullWidth
@@ -642,9 +642,9 @@ const TicketDetail = ({ ticket, onTicketUpdated, isAdmin }) => {
             }
           }}
         />
-        <Badge 
-          color="warning" 
-          badgeContent={pendingMessages.length} 
+        <Badge
+          color="warning"
+          badgeContent={pendingMessages.length}
           invisible={pendingMessages.length === 0}
           sx={{ ml: 1 }}
         >
