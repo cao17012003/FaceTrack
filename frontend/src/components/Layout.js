@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   AppBar,
@@ -30,6 +30,12 @@ import {
   OutlinedInput,
   InputAdornment,
   FormHelperText,
+  Badge,
+  useTheme,
+  alpha,
+  Stack,
+  Container,
+  Chip,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -48,22 +54,25 @@ import {
   Edit as EditIcon,
   Visibility as VisibilityIcon,
   VisibilityOff as VisibilityOffIcon,
-  SupportAgent as SupportIcon
+  SupportAgent as SupportIcon,
+  Settings as SettingsIcon,
+  KeyboardArrowRight as ArrowRightIcon,
+  Fingerprint as FingerprintIcon,
 } from '@mui/icons-material';
 import { useTranslation } from '../translations';
-import { useTheme } from '../contexts/ThemeContext';
+import { useTheme as useAppTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { userApi } from '../services/api';
 import axios from 'axios';
 import { AUTH_TOKEN_KEY } from '../config';
 
-const drawerWidth = 240;
+const drawerWidth = 280;
 
 function Layout({ children }) {
-  const [mobileOpen, setMobileOpen] = React.useState(false);
-  const [userMenuAnchor, setUserMenuAnchor] = React.useState(null);
-  const [openEditDialog, setOpenEditDialog] = React.useState(false);
-  const [userData, setUserData] = React.useState({
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [userMenuAnchor, setUserMenuAnchor] = useState(null);
+  const [openEditDialog, setOpenEditDialog] = useState(false);
+  const [userData, setUserData] = useState({
     username: '',
     fullName: '',
     email: '',
@@ -71,19 +80,19 @@ function Layout({ children }) {
     newPassword: '',
     confirmPassword: '',
   });
-  const [showPassword, setShowPassword] = React.useState(false);
-  const [errors, setErrors] = React.useState({});
+  const [showPassword, setShowPassword] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [notificationCount, setNotificationCount] = useState(3);
   
   const location = useLocation();
   const navigate = useNavigate();
-  const { mode, toggleTheme, isDarkMode } = useTheme();
+  const { mode, toggleTheme, isDarkMode } = useAppTheme();
+  const theme = useTheme();
   const { t } = useTranslation();
   const { currentUser, isAdmin, isEmployee, logout } = useAuth();
   
-  // Debug user information
-  React.useEffect(() => {
-    console.log('Current user in Layout:', currentUser);
-    // Initialize user data from currentUser if available
+  // Initialize user data
+  useEffect(() => {
     if (currentUser && currentUser.user) {
       setUserData(prev => ({
         ...prev,
@@ -94,9 +103,8 @@ function Layout({ children }) {
     }
   }, [currentUser]);
 
-    // Check if the current page is AdminPage to hide sidebar
+  // Check if the current page is AdminPage to hide sidebar
   const isAdminPage = location.pathname === '/admin';
-
 
   // Define menu items based on user role
   const getMenuItems = () => {
@@ -105,7 +113,12 @@ function Layout({ children }) {
       { text: t('menu.home'), path: '/', icon: <DashboardIcon />, allowedRoles: ['admin', 'employee'] },
       { text: t('menu.checkin'), path: '/check-in', icon: <CameraIcon />, allowedRoles: ['admin', 'employee'] },
       { text: t('menu.reports'), path: '/attendance-reports', icon: <AccessTimeIcon />, allowedRoles: ['admin', 'employee'] },
-      { text: t('menu.notifications'), path: '/notifications', icon: <NotificationsIcon />, allowedRoles: ['admin', 'employee'] },
+      { 
+        text: t('menu.notifications'), 
+        path: '/notifications', 
+        icon: <Badge color="error" badgeContent={notificationCount} max={99}><NotificationsIcon /></Badge>, 
+        allowedRoles: ['admin', 'employee'] 
+      },
       { text: t('menu.support'), path: '/support', icon: <SupportIcon />, allowedRoles: ['admin', 'employee'] },
     ];
     
@@ -119,7 +132,6 @@ function Layout({ children }) {
     
     let menuItems = [...commonMenuItems];
     
-    // Bỏ tạm thởi điều kiện kiểm tra admin để test
     if (isAdmin()) {
       menuItems = [...menuItems, ...adminMenuItems];
     }
@@ -200,47 +212,75 @@ function Layout({ children }) {
   };
   
   const handleSubmitUserEdit = async () => {
-    if (validateForm()) {
-      try {
-        let updatedUser = false;
+    if (!validateForm()) {
+      return;
+    }
+    
+    try {
+      // Chỉ gửi các trường đã được nhập
+      const updateData = {
+        first_name: userData.fullName.split(' ').slice(0, -1).join(' '),
+        last_name: userData.fullName.split(' ').slice(-1).join(' '),
+      };
+      
+      if (userData.email) {
+        updateData.email = userData.email;
+      }
+      
+      if (userData.oldPassword && userData.newPassword) {
+        updateData.old_password = userData.oldPassword;
+        updateData.new_password = userData.newPassword;
+      }
+      
+      const token = localStorage.getItem(AUTH_TOKEN_KEY);
+      const userId = currentUser.user.id;
+      
+      const response = await userApi.updateUser(userId, updateData, token);
+      
+      // Cập nhật dữ liệu người dùng trong state
+      if (response && response.data) {
+        const updatedUser = {
+          ...currentUser.user,
+          first_name: updateData.first_name,
+          last_name: updateData.last_name,
+          email: updateData.email || currentUser.user.email,
+        };
         
-        // Nếu có thay đổi mật khẩu
-        if (userData.newPassword && userData.oldPassword) {
-          try {
-            const passwordResponse = await userApi.changePassword(
-              userData.oldPassword,
-              userData.newPassword
-            );
-            
-            if (passwordResponse.data && passwordResponse.data.success) {
-              handleCloseEditDialog();
-              alert(passwordResponse.data.message || 'Mật khẩu đã được cập nhật thành công! Vui lòng đăng nhập lại.');
-              
-              // Đăng xuất và chuyển hướng người dùng tới trang đăng nhập
-              logout();
-              navigate('/login');
-              return; // Thoát khỏi hàm sau khi đã đăng xuất
-            }
-          } catch (error) {
-            const errorMessage = error.response?.data?.error || 'Lỗi khi đổi mật khẩu';
-            alert(errorMessage);
-            console.error('Error updating password:', error);
-            return; // Dừng quá trình nếu đổi mật khẩu bị lỗi
-          }
-        }
+        // Cập nhật localStorage
+        const updatedUserData = {
+          ...currentUser,
+          user: updatedUser,
+        };
+        localStorage.setItem('userData', JSON.stringify(updatedUserData));
         
-        // Xử lý cập nhật thông tin người dùng nếu có
-        // TODO: Thêm API để cập nhật thông tin người dùng
+        // Cập nhật state
+        setUserData({
+          ...userData,
+          fullName: `${updatedUser.first_name} ${updatedUser.last_name}`.trim(),
+          email: updatedUser.email,
+          oldPassword: '',
+          newPassword: '',
+          confirmPassword: '',
+        });
         
-        // Nếu mọi thứ thành công, đóng dialog
-        if (updatedUser) {
-          handleCloseEditDialog();
-        } else {
-          alert('Không có thông tin nào được cập nhật');
-        }
-      } catch (error) {
-        console.error('Error updating user:', error);
-        alert('Đã có lỗi xảy ra khi cập nhật thông tin.');
+        // Đóng dialog
+        handleCloseEditDialog();
+      }
+    } catch (error) {
+      console.error('Error updating user:', error);
+      // Xử lý lỗi nếu có
+      const errorMessage = error.response?.data?.detail || 'Có lỗi xảy ra khi cập nhật thông tin';
+      
+      if (error.response?.status === 400 && error.response?.data?.old_password) {
+        setErrors({
+          ...errors,
+          oldPassword: 'Mật khẩu hiện tại không chính xác',
+        });
+      } else {
+        setErrors({
+          ...errors,
+          general: errorMessage,
+        });
       }
     }
   };

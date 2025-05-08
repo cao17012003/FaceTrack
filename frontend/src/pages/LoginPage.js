@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -14,13 +14,24 @@ import {
   Radio,
   FormControl,
   FormLabel,
-  Avatar,
+  InputAdornment,
+  IconButton,
+  Stack,
+  Divider,
   useTheme,
+  alpha,
 } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
-import PersonIcon from '@mui/icons-material/Person';
-import LockIcon from '@mui/icons-material/Lock';
-import SecurityIcon from '@mui/icons-material/Security';
+import {
+  Person as PersonIcon,
+  Lock as LockIcon,
+  Visibility as VisibilityIcon,
+  VisibilityOff as VisibilityOffIcon,
+  Fingerprint as FingerprintIcon,
+  Security as SecurityIcon,
+  SupervisorAccount as AdminIcon,
+  PersonOutline as UserIcon,
+} from '@mui/icons-material';
 
 const LoginPage = () => {
   const [username, setUsername] = useState('');
@@ -28,10 +39,12 @@ const LoginPage = () => {
   const [role, setRole] = useState('user');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const { login } = useAuth();
   const navigate = useNavigate();
   const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -53,10 +66,6 @@ const LoginPage = () => {
         localStorage.setItem('username', userData.user.username);
         localStorage.setItem('userId', userData.user.id);
         localStorage.setItem('userData', JSON.stringify(userData));
-        
-        console.log('Saved username:', localStorage.getItem('username'));
-        console.log('Saved userId:', localStorage.getItem('userId'));
-        console.log('Saved userData:', localStorage.getItem('userData'));
       }
 
       if (role === 'admin') {
@@ -72,6 +81,10 @@ const LoginPage = () => {
     }
   };
 
+  const toggleShowPassword = () => {
+    setShowPassword(!showPassword);
+  };
+
   return (
     <Box
       sx={{
@@ -79,389 +92,370 @@ const LoginPage = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, #bfdbfe 0%, #f8fafc 50%, #fefce8 100%)',
+        background: isDark
+          ? `linear-gradient(135deg, ${alpha(theme.palette.primary.dark, 0.9)} 0%, ${alpha('#111827', 0.95)} 100%)`
+          : `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.1)} 0%, ${alpha(theme.palette.background.default, 0.7)} 100%)`,
         position: 'relative',
         overflow: 'hidden',
-        '&:before': {
+        '&::before': {
           content: '""',
           position: 'absolute',
-          top: '-50%',
-          left: '-50%',
-          width: '200%',
-          height: '200%',
-          background: 'radial-gradient(circle, rgba(255,255,255,0.15) 10%, transparent 40%)',
-          animation: 'pulse 15s ease-in-out infinite',
-          zIndex: 0,
-        },
-        '@keyframes pulse': {
-          '0%': { transform: 'scale(0.8)', opacity: 0.5 },
-          '50%': { transform: 'scale(1.2)', opacity: 0.3 },
-          '100%': { transform: 'scale(0.8)', opacity: 0.5 },
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: isDark
+            ? 'url("data:image/svg+xml,%3Csvg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"%3E%3Cpath d="M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z" fill="rgba(255,255,255,0.05)" fill-rule="evenodd"/%3E%3C/svg%3E")'
+            : 'url("data:image/svg+xml,%3Csvg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"%3E%3Cpath d="M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z" fill="rgba(0,0,0,0.03)" fill-rule="evenodd"/%3E%3C/svg%3E")',
         },
       }}
     >
-      <Container component="main" maxWidth="xs">
-        <Paper
-          elevation={6}
+      <Container maxWidth="xs">
+        <Box
           sx={{
-            padding: 3,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            width: '100%',
-            borderRadius: 2,
-            background: 'linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(241,245,249,0.85) 100%)',
-            backdropFilter: 'blur(12px)',
-            border: '1px solid rgba(255,255,255,0.2)',
-            transition: 'transform 0.3s ease, box-shadow 0.3s ease',
-            '&:hover': {
-              transform: 'translateY(-4px)',
-              boxShadow: '0 12px 24px rgba(0,0,0,0.15)',
-            },
             position: 'relative',
-            zIndex: 1,
+            zIndex: 2,
+            display: 'flex', 
+            flexDirection: 'column',
+            gap: 2
           }}
         >
-          <Avatar
-            sx={{
-              m: 1,
-              bgcolor: 'linear-gradient(45deg, #60a5fa, #fef08a)',
-              width: 50,
-              height: 50,
-              boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-              animation: 'pulseAvatar 2s ease-in-out infinite',
-              '@keyframes pulseAvatar': {
-                '0%': { transform: 'scale(1)' },
-                '50%': { transform: 'scale(1.05)' },
-                '100%': { transform: 'scale(1)' },
+          <Box 
+            sx={{ 
+              textAlign: 'center', 
+              mb: 3,
+              animation: 'fadeInDown 1s ease-out',
+              '@keyframes fadeInDown': {
+                '0%': { opacity: 0, transform: 'translateY(-20px)' },
+                '100%': { opacity: 1, transform: 'translateY(0)' },
               },
             }}
           >
-            <SecurityIcon sx={{ fontSize: 30, color: '#fff' }} />
-          </Avatar>
-
-          <Typography
-            component="h1"
-            variant="h5"
+            <Stack 
+              direction="row" 
+              spacing={1} 
+              alignItems="center" 
+              justifyContent="center"
+              sx={{ mb: 1 }}
+            >
+              <FingerprintIcon 
+                sx={{ 
+                  fontSize: '2.5rem', 
+                  color: theme.palette.primary.main,
+                  filter: `drop-shadow(0 0 8px ${alpha(theme.palette.primary.main, 0.5)})`,
+                }} 
+              />
+              <Typography
+                variant="h4"
+                sx={{ 
+                  fontWeight: 800, 
+                  color: isDark ? 'white' : theme.palette.primary.main,
+                  letterSpacing: '-0.5px',
+                  textShadow: isDark ? '0 2px 10px rgba(0,0,0,0.3)' : '0 2px 10px rgba(99,102,241,0.2)',
+                }}
+              >
+                FaceTrack-AI
+              </Typography>
+            </Stack>
+            <Typography 
+              variant="subtitle1" 
+              color={isDark ? 'rgba(255,255,255,0.7)' : 'text.secondary'}
+              sx={{ 
+                fontWeight: 500,
+                opacity: 0.85, 
+              }}
+            >
+              Đăng nhập để sử dụng hệ thống
+            </Typography>
+          </Box>
+        
+          <Paper
+            elevation={isDark ? 8 : 4}
             sx={{
-              mt: 1,
-              mb: 2,
-              fontWeight: 'bold',
-              color: '#3b82f6',
-              letterSpacing: '0.2px',
-              textShadow: '0 1px 3px rgba(0,0,0,0.1)',
-              fontSize: '1.8rem',
+              p: 4,
+              borderRadius: 3,
+              backgroundColor: isDark 
+                ? alpha(theme.palette.background.paper, 0.8) 
+                : alpha(theme.palette.background.paper, 0.9),
+              backdropFilter: 'blur(12px)',
+              border: `1px solid ${alpha(isDark ? '#ffffff' : '#000000', 0.05)}`,
+              transform: 'translateY(0)',
+              transition: 'transform 0.3s ease-out, box-shadow 0.3s ease-out',
+              '&:hover': {
+                transform: 'translateY(-8px)',
+                boxShadow: isDark 
+                  ? '0 20px 40px rgba(0,0,0,0.4)' 
+                  : '0 20px 40px rgba(0,0,0,0.1)',
+              },
+              animation: 'fadeIn 1s ease-out',
+              '@keyframes fadeIn': {
+                '0%': { opacity: 0, transform: 'translateY(20px)' },
+                '100%': { opacity: 1, transform: 'translateY(0)' },
+              },
             }}
           >
-            Đăng nhập hệ thống
-          </Typography>
-
-          {error && (
-            <Alert
-              severity="error"
+            <Typography
+              component="h1"
+              variant="h5"
               sx={{
-                mt: 1,
-                mb: 2,
-                width: '100%',
-                borderRadius: 1,
-                bgcolor: 'rgba(254,226,226,0.95)',
-                boxShadow: '0 2px 6px rgba(255,0,0,0.1)',
-                opacity: 0,
-                animation: 'fadeIn 0.3s ease forwards',
-                '@keyframes fadeIn': {
-                  to: { opacity: 1 },
-                },
-                fontSize: '0.85rem',
-                padding: '8px',
+                mb: 3,
+                fontWeight: 700,
+                color: theme.palette.primary.main,
+                textAlign: 'center',
               }}
             >
-              {error}
-            </Alert>
-          )}
+              Đăng nhập
+            </Typography>
 
-          <Box component="form" onSubmit={handleLogin} sx={{ mt: 1, width: '100%' }}>
-            <FormControl
-              component="fieldset"
-              sx={{
-                width: '100%',
-                mb: 2,
-                '& .MuiFormLabel-root': {
-                  color: '#3b82f6',
-                  fontWeight: 'bold',
-                  fontSize: '0.9rem',
-                },
-                '& .MuiFormControlLabel-label': {
-                  color: theme.palette.text.primary,
-                  fontSize: '0.85rem',
-                },
-              }}
-            >
-              <FormLabel component="legend">Vai trò</FormLabel>
-              <RadioGroup
-                row
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
+            {error && (
+              <Alert
+                severity="error"
                 sx={{
-                  justifyContent: 'center',
-                  gap: 3,
-                  '& .MuiRadio-root': {
-                    color: '#60a5fa',
-                    transform: 'scale(0.9)',
-                    '&.Mui-checked': {
-                      color: '#3b82f6',
-                    },
+                  mb: 3,
+                  borderRadius: 2,
+                  backgroundColor: alpha(theme.palette.error.main, 0.1),
+                  color: theme.palette.error.main,
+                  border: `1px solid ${alpha(theme.palette.error.main, 0.2)}`,
+                  '& .MuiAlert-icon': {
+                    color: theme.palette.error.main,
                   },
-                  '& .MuiFormControlLabel-root': {
-                    transition: 'all 0.2s ease',
-                    '&:hover': {
-                      transform: 'scale(1.1)',
-                      background: 'rgba(96,165,250,0.05)',
-                      borderRadius: 1,
-                    },
+                  animation: 'shake 0.5s ease-in-out',
+                  '@keyframes shake': {
+                    '0%, 100%': { transform: 'translateX(0)' },
+                    '20%, 60%': { transform: 'translateX(-5px)' },
+                    '40%, 80%': { transform: 'translateX(5px)' },
                   },
                 }}
               >
-                <FormControlLabel value="user" control={<Radio size="small" />} label="Nhân viên" />
-                <FormControlLabel value="admin" control={<Radio size="small" />} label="Quản trị viên" />
-              </RadioGroup>
-            </FormControl>
+                {error}
+              </Alert>
+            )}
 
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              id="username"
-              label="Tên đăng nhập"
-              name="username"
-              autoComplete="username"
-              autoFocus
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              disabled={loading}
-              InputProps={{
-                startAdornment: (
-                  <PersonIcon
-                    sx={{
-                      mr: 0.5,
-                      color: '#60a5fa',
-                      fontSize: 20,
-                      transition: 'color 0.3s ease',
-                      '.Mui-focused &': { color: '#3b82f6' },
-                    }}
-                  />
-                ),
-              }}
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 1,
-                  background: 'rgba(255,255,255,0.9)',
-                  transition: 'all 0.3s ease',
-                  fontSize: '0.9rem',
-                  '&:hover fieldset': {
-                    borderColor: '#3b82f6',
-                  },
-                  '&.Mui-focused fieldset': {
-                    borderColor: '#3b82f6',
-                    boxShadow: '0 0 8px rgba(96,165,250,0.5)',
-                  },
-                },
-                '& .MuiInputLabel-root': {
-                  color: '#60a5fa',
-                  fontWeight: 'medium',
-                  fontSize: '0.9rem',
-                  '&.Mui-focused': {
-                    color: '#3b82f6',
-                  },
-                },
-                mb: 1.5,
-                '& .MuiInputBase-input': {
-                  padding: '8px 12px',
-                },
-              }}
-            />
-
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              name="password"
-              label="Mật khẩu"
-              type="password"
-              id="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={loading}
-              InputProps={{
-                startAdornment: (
-                  <LockIcon
-                    sx={{
-                      mr: 0.5,
-                      color: '#60a5fa',
-                      fontSize: 20,
-                      transition: 'color 0.3s ease',
-                      '.Mui-focused &': { color: '#3b82f6' },
-                    }}
-                  />
-                ),
-              }}
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 1,
-                  background: 'rgba(255,255,255,0.9)',
-                  transition: 'all 0.3s ease',
-                  fontSize: '0.9rem',
-                  '&:hover fieldset': {
-                    borderColor: '#3b82f6',
-                  },
-                  '&.Mui-focused fieldset': {
-                    borderColor: '#3b82f6',
-                    boxShadow: '0 0 8px rgba(96,165,250,0.5)',
-                  },
-                },
-                '& .MuiInputLabel-root': {
-                  color: '#60a5fa',
-                  fontWeight: 'medium',
-                  fontSize: '0.9rem',
-                  '&.Mui-focused': {
-                    color: '#3b82f6',
-                  },
-                },
-                mb: 1.5,
-                '& .MuiInputBase-input': {
-                  padding: '8px 12px',
-                },
-              }}
-            />
-
-            <Button
-              type="submit"
-              fullWidth
-              variant="contained"
-              sx={{
-                mt: 2,
-                mb: 1.5,
-                py: 1,
-                borderRadius: 1,
-                textTransform: 'none',
-                fontSize: '0.95rem',
-                fontWeight: 'bold',
-                background: 'linear-gradient(45deg, #60a5fa 30%, #fef08a 90%)',
-                color: '#1e3a8a',
-                boxShadow: '0 3px 10px rgba(0,0,0,0.2)',
-                transition: 'all 0.3s ease',
-                '&:hover': {
-                  background: 'linear-gradient(45deg, #fef08a 30%, #60a5fa 90%)',
-                  transform: 'scale(1.02)',
-                  boxShadow: '0 5px 15px rgba(96,165,250,0.4)',
-                },
-                '&:disabled': {
-                  background: 'linear-gradient(45deg, #e5e7eb 30%, #d1d5db 90%)',
-                  boxShadow: 'none',
-                  color: '#6b7280',
-                },
-              }}
-              disabled={loading}
-            >
-              {loading ? <CircularProgress size={22} color="inherit" /> : 'Đăng nhập'}
-            </Button>
-
-            <Button
-              fullWidth
-              variant="outlined"
-              onClick={() => navigate('/register')}
-              sx={{
-                py: 1,
-                borderRadius: 1,
-                textTransform: 'none',
-                fontSize: '0.95rem',
-                fontWeight: 'bold',
-                borderColor: '#60a5fa',
-                color: '#60a5fa',
-                transition: 'all 0.3s ease',
-                '&:hover': {
-                  background: 'rgba(96,165,250,0.1)',
-                  color: '#3b82f6',
-                  borderColor: '#3b82f6',
-                  transform: 'scale(1.02)',
-                },
-                mb: 1.5,
-              }}
-              disabled={loading}
-            >
-              Đăng ký tài khoản
-            </Button>
-
-            <Paper
-              elevation={0}
-              sx={{
-                mt: 1.5,
-                p: 1.5,
-                width: '100%',
-                bgcolor: 'rgba(96,165,250,0.05)',
-                borderRadius: 1,
-                border: '1px solid rgba(96,165,250,0.2)',
-                transition: 'all 0.2s ease',
-                '&:hover': {
-                  background: 'rgba(96,165,250,0.1)',
-                  transform: 'scale(1.01)',
-                },
-              }}
-            >
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                align="center"
-                sx={{ fontWeight: 'bold', color: '#3b82f6', mb: 1, fontSize: '0.8rem' }}
+            <Box component="form" onSubmit={handleLogin} sx={{ mt: 1 }}>
+              <FormControl 
+                sx={{ 
+                  mb: 3, 
+                  display: 'flex', 
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center', 
+                  width: '100%',
+                  border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                  borderRadius: 2,
+                  p: 0.8,
+                  backgroundColor: isDark 
+                    ? alpha(theme.palette.background.default, 0.5) 
+                    : alpha(theme.palette.primary.main, 0.03)
+                }}
               >
-                Thông tin đăng nhập thử nghiệm:
-              </Typography>
-              <Box
-                component="div"
+                <RadioGroup
+                  row
+                  name="role"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                  sx={{ justifyContent: 'center' }}
+                >
+                  <FormControlLabel
+                    value="user"
+                    control={
+                      <Radio 
+                        color="primary" 
+                        size="small"
+                        sx={{ 
+                          '&.Mui-checked': {
+                            color: theme.palette.primary.main,
+                          } 
+                        }}
+                      />
+                    }
+                    label={
+                      <Stack direction="row" spacing={0.5} alignItems="center">
+                        <UserIcon fontSize="small" />
+                        <Typography variant="body2">Nhân viên</Typography>
+                      </Stack>
+                    }
+                    sx={{ mr: 2 }}
+                  />
+                  <FormControlLabel
+                    value="admin"
+                    control={
+                      <Radio 
+                        color="primary" 
+                        size="small"
+                        sx={{ 
+                          '&.Mui-checked': {
+                            color: theme.palette.primary.main,
+                          } 
+                        }}
+                      />
+                    }
+                    label={
+                      <Stack direction="row" spacing={0.5} alignItems="center">
+                        <AdminIcon fontSize="small" />
+                        <Typography variant="body2">Quản trị viên</Typography>
+                      </Stack>
+                    }
+                  />
+                </RadioGroup>
+              </FormControl>
+
+              <TextField
+                margin="normal"
+                required
+                fullWidth
+                id="username"
+                label="Tên đăng nhập"
+                name="username"
+                autoComplete="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoFocus
+                variant="outlined"
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <PersonIcon color="primary" />
+                    </InputAdornment>
+                  ),
+                }}
                 sx={{
-                  display: 'flex',
+                  mb: 2,
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    transition: 'all 0.2s ease-out',
+                    '&:hover': {
+                      boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.1)}`,
+                    },
+                    '&.Mui-focused': {
+                      boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.2)}`,
+                    },
+                  },
+                }}
+              />
+
+              <TextField
+                margin="normal"
+                required
+                fullWidth
+                name="password"
+                label="Mật khẩu"
+                type={showPassword ? 'text' : 'password'}
+                id="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <LockIcon color="primary" />
+                    </InputAdornment>
+                  ),
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        aria-label="toggle password visibility"
+                        onClick={toggleShowPassword}
+                        edge="end"
+                      >
+                        {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{
+                  mb: 3,
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    transition: 'all 0.2s ease-out',
+                    '&:hover': {
+                      boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.1)}`,
+                    },
+                    '&.Mui-focused': {
+                      boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.2)}`,
+                    },
+                  },
+                }}
+              />
+
+              <Button
+                type="submit"
+                fullWidth
+                variant="contained"
+                color="primary"
+                disabled={loading}
+                sx={{
+                  p: 1.5,
+                  borderRadius: 2,
+                  fontWeight: 600,
+                  fontSize: '1rem',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  boxShadow: isDark 
+                    ? `0 4px 15px ${alpha(theme.palette.primary.main, 0.4)}` 
+                    : `0 4px 15px ${alpha(theme.palette.primary.main, 0.2)}`,
+                  transition: 'all 0.3s ease-out',
+                  '&:hover': {
+                    transform: 'translateY(-2px)',
+                    boxShadow: isDark 
+                      ? `0 8px 25px ${alpha(theme.palette.primary.main, 0.5)}` 
+                      : `0 8px 25px ${alpha(theme.palette.primary.main, 0.3)}`,
+                  },
+                  '&::after': {
+                    content: '""',
+                    position: 'absolute',
+                    top: '-50%',
+                    left: '-50%',
+                    width: '200%',
+                    height: '200%',
+                    background: `linear-gradient(45deg, ${alpha(theme.palette.primary.light, 0)} 30%, ${alpha('#fff', 0.2)} 50%, ${alpha(theme.palette.primary.light, 0)} 70%)`,
+                    transform: 'rotate(45deg)',
+                    transition: 'all 0.5s ease-out',
+                    animation: 'shimmer 3s infinite',
+                    zIndex: 0,
+                  },
+                  '@keyframes shimmer': {
+                    '0%': { transform: 'translateX(-100%) rotate(45deg)' },
+                    '100%': { transform: 'translateX(100%) rotate(45deg)' },
+                  },
+                }}
+              >
+                {loading ? (
+                  <CircularProgress size={24} color="inherit" />
+                ) : (
+                  <span style={{ position: 'relative', zIndex: 1 }}>Đăng nhập</span>
+                )}
+              </Button>
+
+              <Box 
+                sx={{ 
+                  mt: 3, 
+                  display: 'flex', 
                   flexDirection: 'column',
-                  gap: 0.8,
+                  alignItems: 'center',
+                  gap: 1
                 }}
               >
-                <Box
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 0.5,
-                    color: '#3b82f6',
-                    fontSize: '0.8rem',
-                    transition: 'all 0.2s ease',
-                    '&:hover': {
-                      transform: 'translateX(4px)',
-                      color: '#1e40af',
-                    },
+                <Link 
+                  to="/register" 
+                  style={{ 
+                    textDecoration: 'none',
+                    color: theme.palette.primary.main,
+                    fontWeight: 500,
+                    fontSize: '0.875rem',
                   }}
                 >
-                  <PersonIcon fontSize="small" />
-                  <Typography variant="body2">Admin: admin / admin123</Typography>
-                </Box>
-                <Box
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 0.5,
-                    color: '#3b82f6',
-                    fontSize: '0.8rem',
-                    transition: 'all 0.2s ease',
-                    '&:hover': {
-                      transform: 'translateX(4px)',
-                      color: '#1e40af',
-                    },
-                  }}
-                >
-                  <PersonIcon fontSize="small" />
-                  <Typography variant="body2">Nhân viên: 21011801 / 21011801</Typography>
-                </Box>
+                  Chưa có tài khoản? Đăng ký
+                </Link>
               </Box>
-            </Paper>
+            </Box>
+          </Paper>
+          
+          <Box sx={{ textAlign: 'center', mt: 3, opacity: 0.7 }}>
+            <Typography variant="body2" color={isDark ? 'white' : 'text.secondary'}>
+              © {new Date().getFullYear()} FaceTrack-AI. Bản quyền thuộc về FaceTrack-AI.
+            </Typography>
           </Box>
-        </Paper>
+        </Box>
       </Container>
     </Box>
   );

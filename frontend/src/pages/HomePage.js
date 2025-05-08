@@ -11,6 +11,13 @@ import {
   Button,
   CircularProgress,
   Alert,
+  Avatar,
+  Stack,
+  Divider,
+  Chip,
+  Container,
+  useTheme,
+  alpha,
 } from '@mui/material';
 import {
   People as PeopleIcon,
@@ -18,80 +25,308 @@ import {
   Schedule as ScheduleIcon,
   AccessTime as AccessTimeIcon,
   CameraAlt as CameraIcon,
+  TrendingUp as TrendingUpIcon,
+  ArrowForward as ArrowForwardIcon,
+  LaptopMac as LaptopIcon,
+  Fingerprint as FingerprintIcon,
+  Speed as SpeedIcon
 } from '@mui/icons-material';
 import { employeeApi, departmentApi, shiftApi, attendanceApi } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from '../translations';
 
-const StatCard = ({ title, value, icon, color, isLoading }) => (
-  <Card sx={{ height: '100%' }}>
-    <CardContent>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+// Modern stat card with gradient background
+const StatCard = ({ title, value, icon, color, isLoading }) => {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+  
+  return (
+    <Card 
+      sx={{
+        height: '100%',
+        background: isDark 
+          ? `linear-gradient(45deg, ${alpha(theme.palette[color].dark, 0.8)}, ${alpha(theme.palette[color].main, 0.4)})`
+          : `linear-gradient(45deg, ${alpha(theme.palette[color].light, 0.8)}, ${alpha(theme.palette[color].main, 0.3)})`,
+        color: isDark ? '#fff' : theme.palette.text.primary,
+        position: 'relative',
+        overflow: 'hidden',
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          top: '-50%',
+          right: '-50%',
+          width: '200%',
+          height: '200%',
+          borderRadius: '50%',
+          background: isDark 
+            ? alpha(theme.palette[color].main, 0.15)
+            : alpha(theme.palette[color].main, 0.07),
+        }
+      }}
+    >
+      <CardContent sx={{ position: 'relative', zIndex: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+          <Avatar
+            sx={{
+              backgroundColor: isDark 
+                ? alpha(theme.palette[color].light, 0.2)
+                : alpha(theme.palette[color].main, 0.1),
+              color: theme.palette[color].main,
+              p: 1,
+              mr: 2,
+              boxShadow: isDark 
+                ? `0 0 10px ${alpha(theme.palette[color].main, 0.5)}`
+                : 'none',
+            }}
+          >
+            {icon}
+          </Avatar>
+          <Typography variant="h6" fontWeight="500" color="inherit">
+            {title}
+          </Typography>
+        </Box>
+        
+        {isLoading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+            <CircularProgress size={28} color={color} />
+          </Box>
+        ) : (
+          <Typography 
+            variant="h3" 
+            component="div" 
+            sx={{ 
+              fontWeight: 'bold',
+              mb: 1.5,
+              textShadow: isDark ? '0 2px 4px rgba(0,0,0,0.2)' : 'none'
+            }}
+          >
+            {value}
+          </Typography>
+        )}
+        
         <Box
           sx={{
-            backgroundColor: `${color}.light`,
-            borderRadius: '50%',
-            p: 1,
-            mr: 2,
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
+            justifyContent: 'flex-end',
+            mt: 1
           }}
         >
-          {React.cloneElement(icon, { sx: { color: `${color}.main` } })}
+          <TrendingUpIcon 
+            sx={{ 
+              fontSize: '1rem', 
+              mr: 0.5,
+              color: isDark 
+                ? alpha(theme.palette.success.main, 0.8)
+                : theme.palette.success.main
+            }} 
+          />
+          <Typography 
+            variant="caption" 
+            sx={{ 
+              fontWeight: 500,
+              color: isDark 
+                ? alpha(theme.palette.success.main, 0.8)
+                : theme.palette.success.main
+            }}
+          >
+            +{Math.floor(Math.random() * 20) + 5}% từ tháng trước
+          </Typography>
         </Box>
-        <Typography variant="h6" component="div">
-          {title}
-        </Typography>
-      </Box>
-      {isLoading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-          <CircularProgress size={24} />
-        </Box>
-      ) : (
-        <Typography variant="h3" component="div" sx={{ fontWeight: 'bold' }}>
-          {value}
-        </Typography>
-      )}
-    </CardContent>
-  </Card>
-);
+      </CardContent>
+    </Card>
+  );
+};
 
-const FeatureCard = ({ title, description, icon, linkTo, color }) => (
-  <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-    <CardContent sx={{ flexGrow: 1 }}>
+// Enhanced feature card
+const FeatureCard = ({ title, description, icon, linkTo, color }) => {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+  
+  return (
+    <Card 
+      sx={{ 
+        height: '100%', 
+        display: 'flex', 
+        flexDirection: 'column',
+        position: 'relative',
+        overflow: 'hidden'
+      }}
+    >
       <Box
         sx={{
-          backgroundColor: `${color}.light`,
+          position: 'absolute',
+          right: -20,
+          top: -20,
+          width: 100,
+          height: 100,
           borderRadius: '50%',
-          p: 1,
-          width: 'fit-content',
-          mb: 2,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          background: isDark 
+            ? alpha(theme.palette[color].main, 0.15)
+            : alpha(theme.palette[color].main, 0.07),
+          zIndex: 0
         }}
-      >
-        {React.cloneElement(icon, { sx: { color: `${color}.main` } })}
+      />
+      
+      <CardContent sx={{ flexGrow: 1, position: 'relative', zIndex: 1 }}>
+        <Avatar
+          sx={{
+            backgroundColor: isDark 
+              ? alpha(theme.palette[color].main, 0.2)
+              : alpha(theme.palette[color].main, 0.1),
+            color: theme.palette[color].main,
+            width: 48,
+            height: 48,
+            mb: 2,
+            boxShadow: isDark 
+              ? `0 0 10px ${alpha(theme.palette[color].main, 0.4)}`
+              : 'none',
+          }}
+        >
+          {icon}
+        </Avatar>
+        
+        <Typography 
+          variant="h6" 
+          component="div" 
+          gutterBottom
+          sx={{ fontWeight: 600 }}
+        >
+          {title}
+        </Typography>
+        
+        <Typography 
+          variant="body2" 
+          color="text.secondary"
+          sx={{ mb: 2 }}
+        >
+          {description}
+        </Typography>
+      </CardContent>
+      
+      <CardActions sx={{ justifyContent: 'flex-end', p: 2, pt: 0 }}>
+        <Button 
+          endIcon={<ArrowForwardIcon />} 
+          component={Link} 
+          to={linkTo}
+          color={color}
+          sx={{
+            fontWeight: 600,
+            '&:hover': {
+              backgroundColor: isDark 
+                ? alpha(theme.palette[color].main, 0.1)
+                : alpha(theme.palette[color].main, 0.05),
+            }
+          }}
+        >
+          Truy cập
+        </Button>
+      </CardActions>
+    </Card>
+  );
+};
+
+const InfoBanner = () => {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+  
+  return (
+    <Paper
+      sx={{
+        p: 3,
+        mb: 4,
+        background: isDark 
+          ? `linear-gradient(120deg, ${alpha(theme.palette.primary.dark, 0.7)}, ${alpha(theme.palette.primary.main, 0.4)})`
+          : `linear-gradient(120deg, ${alpha(theme.palette.primary.light, 0.2)}, ${alpha(theme.palette.primary.main, 0.08)})`,
+        borderRadius: 3,
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      <Box
+        sx={{
+          position: 'absolute',
+          bottom: -30,
+          right: -30,
+          width: 180,
+          height: 180,
+          borderRadius: '50%',
+          background: isDark 
+            ? alpha(theme.palette.primary.main, 0.1)
+            : alpha(theme.palette.primary.main, 0.07),
+          zIndex: 0
+        }}
+      />
+      <Box
+        sx={{
+          position: 'absolute',
+          top: -20,
+          left: '40%',
+          width: 100,
+          height: 100,
+          borderRadius: '50%',
+          background: isDark 
+            ? alpha(theme.palette.primary.main, 0.15)
+            : alpha(theme.palette.primary.main, 0.05),
+          zIndex: 0
+        }}
+      />
+      
+      <Box sx={{ position: 'relative', zIndex: 1 }}>
+        <Stack direction="row" alignItems="center" spacing={2} mb={2}>
+          <FingerprintIcon 
+            color="primary" 
+            sx={{ 
+              fontSize: '2.5rem',
+              filter: isDark ? 'drop-shadow(0 0 8px rgba(99, 102, 241, 0.5))' : 'none'
+            }} 
+          />
+          <Typography variant="h5" fontWeight="700" color="primary.main">
+            FaceTrack-AI
+          </Typography>
+          <Chip 
+            label="v1.0" 
+            size="small" 
+            color="primary" 
+            variant={isDark ? "default" : "outlined"}
+            sx={{ height: 22 }} 
+          />
+        </Stack>
+        <Typography variant="body1" paragraph mb={3}>
+          Hệ thống chấm công khuôn mặt hiện đại sử dụng trí tuệ nhân tạo để 
+          nhận diện chính xác và chống giả mạo. Quản lý thông tin nhân viên 
+          và dữ liệu chấm công một cách hiệu quả.
+        </Typography>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<CameraIcon />}
+            component={Link}
+            to="/check-in"
+            sx={{ fontWeight: 600 }}
+          >
+            Chấm công ngay
+          </Button>
+          <Button 
+            variant="outlined" 
+            color="primary"
+            startIcon={<SpeedIcon />}
+            component={Link}
+            to="/attendance-reports"
+          >
+            Xem báo cáo
+          </Button>
+        </Stack>
       </Box>
-      <Typography variant="h6" component="div" gutterBottom>
-        {title}
-      </Typography>
-      <Typography variant="body2" color="text.secondary">
-        {description}
-      </Typography>
-    </CardContent>
-    <CardActions>
-      <Button size="small" component={Link} to={linkTo}>
-        Truy cập
-      </Button>
-    </CardActions>
-  </Card>
-);
+    </Paper>
+  );
+};
 
 const HomePage = () => {
   const { currentUser, isAdmin, isEmployee } = useAuth();
   const { t } = useTranslation();
+  const theme = useTheme();
   const [stats, setStats] = useState({
     employees: 0,
     departments: 0,
@@ -130,155 +365,165 @@ const HomePage = () => {
   }, []);
 
   return (
-    <Box>
-      <Typography variant="h4" gutterBottom>
-        {t('home.welcome')}, {currentUser?.fullName}!
+    <Container maxWidth="lg" sx={{ py: 3 }}>
+      <Typography 
+        variant="h4" 
+        gutterBottom
+        fontWeight="bold"
+        sx={{ 
+          mb: 3, 
+          position: 'relative',
+          '&:after': {
+            content: '""',
+            position: 'absolute',
+            bottom: '-8px',
+            left: 0,
+            width: '40px',
+            height: '4px',
+            backgroundColor: theme.palette.primary.main,
+            borderRadius: '2px'
+          }
+        }}
+      >
+        {t('home.welcome')}, {currentUser?.fullName || 'User'}!
       </Typography>
       
-      <Paper sx={{ p: 3, mb: 4 }}>
-        <Typography variant="h6" gutterBottom>
-          {t('home.quickAccess')}
+      <InfoBanner />
+      
+      {error && (
+        <Alert severity="error" sx={{ mb: 4 }}>
+          {error}
+        </Alert>
+      )}
+      
+      <Typography 
+        variant="h5" 
+        gutterBottom 
+        fontWeight="600"
+        sx={{ mb: 2 }}
+      >
+        Tổng quan hệ thống
+      </Typography>
+      
+      <Grid container spacing={3} sx={{ mb: 5 }}>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Nhân viên"
+            value={stats.employees}
+            icon={<PeopleIcon />}
+            color="primary"
+            isLoading={loading}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Phòng ban"
+            value={stats.departments}
+            icon={<BusinessIcon />}
+            color="secondary"
+            isLoading={loading}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Ca làm việc"
+            value={stats.shifts}
+            icon={<ScheduleIcon />}
+            color="info"
+            isLoading={loading}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Điểm danh hôm nay"
+            value={stats.todayAttendance}
+            icon={<AccessTimeIcon />}
+            color="success"
+            isLoading={loading}
+          />
+        </Grid>
+      </Grid>
+      
+      <Box sx={{ mb: 3 }}>
+        <Typography 
+          variant="h5" 
+          gutterBottom 
+          fontWeight="600"
+          sx={{ mb: 2 }}
+        >
+          Truy cập nhanh
         </Typography>
         
         <Grid container spacing={3}>
           {/* Tất cả người dùng có thể truy cập */}
           <Grid item xs={12} sm={6} md={4}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" component="div">
-                  {t('menu.checkin')}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {t('home.checkInDescription')}
-                </Typography>
-              </CardContent>
-              <CardActions>
-                <Button size="small" component={Link} to="/check-in">
-                  {t('home.goTo')}
-                </Button>
-              </CardActions>
-            </Card>
+            <FeatureCard
+              title={t('menu.checkin')}
+              description={t('home.checkInDescription')}
+              icon={<CameraIcon />}
+              linkTo="/check-in"
+              color="primary"
+            />
           </Grid>
           
           <Grid item xs={12} sm={6} md={4}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" component="div">
-                  {t('menu.reports')}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {t('home.reportsDescription')}
-                </Typography>
-              </CardContent>
-              <CardActions>
-                <Button size="small" component={Link} to="/attendance-reports">
-                  {t('home.goTo')}
-                </Button>
-              </CardActions>
-            </Card>
+            <FeatureCard
+              title={t('menu.reports')}
+              description={t('home.reportsDescription')}
+              icon={<AccessTimeIcon />}
+              linkTo="/attendance-reports"
+              color="info"
+            />
+          </Grid>
+          
+          <Grid item xs={12} sm={6} md={4}>
+            <FeatureCard
+              title="Hỗ trợ"
+              description="Được hỗ trợ khi gặp vấn đề sử dụng hệ thống"
+              icon={<LaptopIcon />}
+              linkTo="/support"
+              color="success"
+            />
           </Grid>
           
           {/* Chỉ admin mới có thể truy cập */}
           {isAdmin() && (
             <>
               <Grid item xs={12} sm={6} md={4}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6" component="div">
-                      {t('menu.employees')}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {t('home.employeesDescription')}
-                    </Typography>
-                  </CardContent>
-                  <CardActions>
-                    <Button size="small" component={Link} to="/employees">
-                      {t('home.goTo')}
-                    </Button>
-                  </CardActions>
-                </Card>
+                <FeatureCard
+                  title={t('menu.employees')}
+                  description={t('home.employeesDescription')}
+                  icon={<PeopleIcon />}
+                  linkTo="/employees"
+                  color="secondary"
+                />
               </Grid>
               
               <Grid item xs={12} sm={6} md={4}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6" component="div">
-                      {t('menu.departments')}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {t('home.departmentsDescription')}
-                    </Typography>
-                  </CardContent>
-                  <CardActions>
-                    <Button size="small" component={Link} to="/departments">
-                      {t('home.goTo')}
-                    </Button>
-                  </CardActions>
-                </Card>
+                <FeatureCard
+                  title={t('menu.departments')}
+                  description="Quản lý và sắp xếp các phòng ban trong công ty"
+                  icon={<BusinessIcon />}
+                  linkTo="/departments"
+                  color="warning"
+                />
               </Grid>
               
               <Grid item xs={12} sm={6} md={4}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6" component="div">
-                      {t('menu.shifts')}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {t('home.shiftsDescription')}
-                    </Typography>
-                  </CardContent>
-                  <CardActions>
-                    <Button size="small" component={Link} to="/shifts">
-                      {t('home.goTo')}
-                    </Button>
-                  </CardActions>
-                </Card>
-              </Grid>
-              
-              <Grid item xs={12} sm={6} md={4}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6" component="div">
-                      {t('menu.calendar')}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {t('home.calendarDescription')}
-                    </Typography>
-                  </CardContent>
-                  <CardActions>
-                    <Button size="small" component={Link} to="/calendar">
-                      {t('home.goTo')}
-                    </Button>
-                  </CardActions>
-                </Card>
+                <FeatureCard
+                  title={t('menu.shifts')}
+                  description="Quản lý ca làm việc và lịch trình nhân viên"
+                  icon={<ScheduleIcon />}
+                  linkTo="/shifts"
+                  color="error"
+                />
               </Grid>
             </>
           )}
         </Grid>
-      </Paper>
-      
-      {isEmployee() && (
-        <Paper sx={{ p: 3 }}>
-          <Typography variant="h6" gutterBottom>
-            {t('home.employeeNotice')}
-          </Typography>
-          <Typography variant="body1" paragraph>
-            {t('home.employeeInfo')}
-          </Typography>
-        </Paper>
-      )}
-      
-      {isAdmin() && (
-        <Paper sx={{ p: 3 }}>
-          <Typography variant="h6" gutterBottom>
-            {t('home.adminNotice')}
-          </Typography>
-          <Typography variant="body1" paragraph>
-            {t('home.adminInfo')}
-          </Typography>
-        </Paper>
-      )}
-    </Box>
+      </Box>
+
+    </Container>
   );
 };
 
