@@ -82,7 +82,7 @@ function Layout({ children }) {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
-  const [notificationCount, setNotificationCount] = useState(3);
+  const [notificationCount, setNotificationCount] = useState(0);
   
   const location = useLocation();
   const navigate = useNavigate();
@@ -100,6 +100,49 @@ function Layout({ children }) {
         fullName: `${currentUser.user.first_name || ''} ${currentUser.user.last_name || ''}`.trim(),
         email: currentUser.user.email || '',
       }));
+      
+      // Lấy số thông báo chưa đọc
+      fetchNotificationCount();
+    }
+  }, [currentUser]);
+  
+  // Hàm lấy số lượng thông báo chưa đọc
+  const fetchNotificationCount = async () => {
+    try {
+      if (!currentUser) return;
+      
+      // Lấy employee_id từ currentUser nếu có
+      const employeeId = currentUser.employee?.employee_id;
+      
+      if (employeeId || isAdmin()) {
+        // Gọi API để lấy số thông báo chưa đọc
+        const response = await import('../services/api').then(module => 
+          module.notificationApi.getUnreadCount(employeeId)
+        );
+        
+        if (response && response.data && response.data.count !== undefined) {
+          setNotificationCount(response.data.count);
+        } else {
+          setNotificationCount(0);
+        }
+      }
+    } catch (error) {
+      console.error('Lỗi khi lấy số thông báo chưa đọc:', error);
+      setNotificationCount(0);
+    }
+  };
+  
+  // Thiết lập interval để cập nhật số thông báo định kỳ (1 phút)
+  useEffect(() => {
+    if (currentUser) {
+      // Lấy ngay lập tức khi mount
+      fetchNotificationCount();
+      
+      // Thiết lập interval
+      const interval = setInterval(fetchNotificationCount, 60000);
+      
+      // Cleanup interval khi unmount
+      return () => clearInterval(interval);
     }
   }, [currentUser]);
 

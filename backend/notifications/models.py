@@ -14,7 +14,8 @@ class Notification(models.Model):
     title = models.CharField(max_length=200)
     message = models.TextField()
     type = models.CharField(max_length=20, choices=NOTIFICATION_TYPES, default='system')
-    is_read = models.BooleanField(default=False)
+    is_read = models.BooleanField(default=False)  # Đã đọc bởi nhân viên
+    is_read_by_admin = models.BooleanField(default=False)  # Đã đọc bởi admin
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     

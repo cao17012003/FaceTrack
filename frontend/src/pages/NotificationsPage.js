@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -82,6 +82,17 @@ const NotificationsPage = () => {
   });
   const [formErrors, setFormErrors] = useState({});
   
+  // Tính toán số lượng thông báo chưa đọc
+  const unreadCount = useMemo(() => {
+    if (isAdmin()) {
+      // Admin đếm thông báo chưa đọc bởi admin
+      return notifications.filter(notification => !notification.is_read_by_admin).length;
+    } else {
+      // Nhân viên đếm thông báo chưa đọc bởi nhân viên
+      return notifications.filter(notification => !notification.is_read).length;
+    }
+  }, [notifications, isAdmin]);
+  
   useEffect(() => {
     fetchNotifications();
   }, []);
@@ -92,9 +103,21 @@ const NotificationsPage = () => {
     
     // Lọc theo tab
     if (activeTab === 1) {
-      filtered = filtered.filter(n => !n.is_read);
+      if (isAdmin()) {
+        // Admin xem thông báo chưa đọc bởi admin
+        filtered = filtered.filter(n => !n.is_read_by_admin);
+      } else {
+        // Nhân viên xem thông báo chưa đọc bởi nhân viên
+        filtered = filtered.filter(n => !n.is_read);
+      }
     } else if (activeTab === 2) {
-      filtered = filtered.filter(n => n.is_read);
+      if (isAdmin()) {
+        // Admin xem thông báo đã đọc bởi admin
+        filtered = filtered.filter(n => n.is_read_by_admin);
+      } else {
+        // Nhân viên xem thông báo đã đọc bởi nhân viên
+        filtered = filtered.filter(n => n.is_read);
+      }
     }
     
     // Lọc theo loại thông báo
@@ -168,9 +191,14 @@ const NotificationsPage = () => {
   const handleMarkAllAsRead = async () => {
     try {
       const employeeId = getEmployeeId();
-      if (!employeeId && !isAdmin()) return;
       
+      // Nếu không phải admin và không có employeeId thì return
+      if (!isAdmin() && !employeeId) return;
+      
+      // Sử dụng employeeId nếu là nhân viên, nếu là admin thì có thể không cần employeeId
       await notificationApi.markAllAsRead(employeeId);
+      
+      // Cập nhật lại danh sách thông báo và badge count
       fetchNotifications();
       setSuccess('Đã đánh dấu tất cả thông báo là đã đọc');
     } catch (err) {
@@ -182,7 +210,10 @@ const NotificationsPage = () => {
   const handleMarkAsRead = async (id) => {
     try {
       await notificationApi.markAsRead(id);
+      
+      // Cập nhật lại danh sách thông báo sau khi đánh dấu đã đọc
       fetchNotifications();
+      
       setSuccess('Đã đánh dấu thông báo là đã đọc');
     } catch (err) {
       console.error('Lỗi khi đánh dấu đã đọc:', err);
@@ -388,8 +419,6 @@ const NotificationsPage = () => {
     }
   };
   
-  const unreadCount = notifications.filter(n => !n.is_read).length;
-  
   return (
     <Box>
       <Snackbar 
@@ -507,16 +536,22 @@ const NotificationsPage = () => {
                 <ListItem 
                   alignItems="flex-start"
                   sx={{ 
-                    bgcolor: notification.is_read ? 'transparent' : 'rgba(25, 118, 210, 0.05)',
+                    bgcolor: isAdmin() 
+                      ? notification.is_read_by_admin ? 'transparent' : 'rgba(25, 118, 210, 0.05)'
+                      : notification.is_read ? 'transparent' : 'rgba(25, 118, 210, 0.05)',
                     position: 'relative',
                     transition: 'background-color 0.3s',
                     '&:hover': {
-                      bgcolor: notification.is_read ? 'rgba(0, 0, 0, 0.04)' : 'rgba(25, 118, 210, 0.1)',
+                      bgcolor: isAdmin()
+                        ? notification.is_read_by_admin ? 'rgba(0, 0, 0, 0.04)' : 'rgba(25, 118, 210, 0.1)'
+                        : notification.is_read ? 'rgba(0, 0, 0, 0.04)' : 'rgba(25, 118, 210, 0.1)',
                     }
                   }}
                 >
                   <ListItemAvatar>
-                    <Avatar sx={{ bgcolor: notification.is_read ? 'action.disabled' : 'primary.main' }}>
+                    <Avatar sx={{ bgcolor: isAdmin() 
+                                        ? notification.is_read_by_admin ? 'action.disabled' : 'primary.main'
+                                        : notification.is_read ? 'action.disabled' : 'primary.main' }}>
                       {getIconForType(notification.type)}
                     </Avatar>
                   </ListItemAvatar>
@@ -528,7 +563,9 @@ const NotificationsPage = () => {
                             variant="subtitle1" 
                             component="div"
                             sx={{ 
-                              fontWeight: notification.is_read ? 'normal' : 'bold',
+                              fontWeight: isAdmin()
+                                ? notification.is_read_by_admin ? 'normal' : 'bold'
+                                : notification.is_read ? 'normal' : 'bold',
                             }}
                           >
                             {notification.title}
@@ -538,7 +575,9 @@ const NotificationsPage = () => {
                           <Chip 
                             size="small" 
                             label={getTypeLabel(notification.type)}
-                            color={notification.is_read ? "default" : "primary"}
+                            color={isAdmin()
+                                 ? notification.is_read_by_admin ? "default" : "primary"
+                                 : notification.is_read ? "default" : "primary"}
                             variant="outlined"
                             sx={{ mr: 1 }}
                           />
@@ -549,15 +588,25 @@ const NotificationsPage = () => {
                             color="secondary"
                           />
                         </Grid>
-                        {!notification.is_read && (
-                          <Grid item>
-                            <Chip 
-                              size="small" 
-                              color="error" 
-                              label="Mới"
-                            />
-                          </Grid>
-                        )}
+                        {isAdmin() 
+                          ? !notification.is_read_by_admin && (
+                            <Grid item>
+                              <Chip 
+                                size="small" 
+                                color="error" 
+                                label="Mới"
+                              />
+                            </Grid>
+                          )
+                          : !notification.is_read && (
+                            <Grid item>
+                              <Chip 
+                                size="small" 
+                                color="error" 
+                                label="Mới"
+                              />
+                            </Grid>
+                          )}
                       </Grid>
                     }
                     secondary={
@@ -566,7 +615,9 @@ const NotificationsPage = () => {
                           sx={{ 
                             display: 'block', 
                             mt: 1,
-                            fontWeight: notification.is_read ? 'normal' : 500,
+                            fontWeight: isAdmin() 
+                                ? notification.is_read_by_admin ? 'normal' : 500
+                                : notification.is_read ? 'normal' : 500,
                           }}
                           component="span"
                           variant="body2"
@@ -576,18 +627,31 @@ const NotificationsPage = () => {
                         </Typography>
                         
                         <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-end' }}>
-                          {!notification.is_read && (
-                            <Button 
-                              size="small" 
-                              variant="outlined"
-                              color="primary"
-                              onClick={() => handleMarkAsRead(notification.id)}
-                              startIcon={<CheckCircleIcon />}
-                              sx={{ mr: 1 }}
-                            >
-                              Đánh dấu đã đọc
-                            </Button>
-                          )}
+                          {isAdmin() 
+                            ? !notification.is_read_by_admin && (
+                              <Button 
+                                size="small" 
+                                variant="outlined"
+                                color="primary"
+                                onClick={() => handleMarkAsRead(notification.id)}
+                                startIcon={<CheckCircleIcon />}
+                                sx={{ mr: 1 }}
+                              >
+                                Đánh dấu đã đọc
+                              </Button>
+                            )
+                            : !notification.is_read && (
+                              <Button 
+                                size="small" 
+                                variant="outlined"
+                                color="primary"
+                                onClick={() => handleMarkAsRead(notification.id)}
+                                startIcon={<CheckCircleIcon />}
+                                sx={{ mr: 1 }}
+                              >
+                                Đánh dấu đã đọc
+                              </Button>
+                            )}
                           
                           <IconButton
                             size="small"

@@ -366,50 +366,53 @@ class MessageViewSet(viewsets.ModelViewSet):
                 ticket = SupportTicket.objects.get(id=ticket_id)
                 
                 # For now, allow all access to messages for debugging
+                logger.info(f"Returning all messages for ticket ID {ticket_id}")
                 return Message.objects.filter(ticket=ticket)
                 
-                # User authentication can be re-enabled after fixing the issue
-                # user = self.request.user
-                # if not user or not user.is_authenticated:
-                #     return Message.objects.none()
+                # Code below is commented out and will be re-enabled after the issue is fixed
+                """
+                user = self.request.user
+                if not user or not user.is_authenticated:
+                    return Message.objects.none()
                 
-                # try:
-                #     user_profile = UserProfile.objects.get(user=user)
-                #     
-                #     # Admin can view all messages
-                #     if user_profile.is_admin:
-                #         unread_messages = Message.objects.filter(
-                #             ticket=ticket,
-                #             is_read=False,
-                #             is_from_admin=False
-                #         )
-                #         
-                #         for message in unread_messages:
-                #             message.is_read = True
-                #             message.save()
-                #         
-                #         return Message.objects.filter(ticket=ticket)
-                #     
-                #     # Employee can only view messages of their own tickets
-                #     try:
-                #         employee = Employee.objects.get(username=user)
-                #         if ticket.employee == employee:
-                #             unread_messages = Message.objects.filter(
-                #                 ticket=ticket,
-                #                 is_read=False,
-                #                 is_from_admin=True
-                #             )
-                #             
-                #             for message in unread_messages:
-                #                 message.is_read = True
-                #                 message.save()
-                #             
-                #             return Message.objects.filter(ticket=ticket)
-                #         return Message.objects.none()
-                #     except Employee.DoesNotExist:
-                #         return Message.objects.none()
-                # except UserProfile.DoesNotExist:
-                #     return Message.objects.none()
+                try:
+                    user_profile = UserProfile.objects.get(user=user)
+                    
+                    # Admin can view all messages
+                    if user_profile.is_admin:
+                        unread_messages = Message.objects.filter(
+                            ticket=ticket,
+                            is_read=False,
+                            is_from_admin=False
+                        )
+                        
+                        for message in unread_messages:
+                            message.is_read = True
+                            message.save()
+                        
+                        return Message.objects.filter(ticket=ticket)
+                    
+                    # Employee can only view messages of their own tickets
+                    try:
+                        employee = Employee.objects.get(username=user)
+                        if ticket.employee == employee:
+                            unread_messages = Message.objects.filter(
+                                ticket=ticket,
+                                is_read=False,
+                                is_from_admin=True
+                            )
+                            
+                            for message in unread_messages:
+                                message.is_read = True
+                                message.save()
+                            
+                            return Message.objects.filter(ticket=ticket)
+                        return Message.objects.none()
+                    except Employee.DoesNotExist:
+                        return Message.objects.none()
+                except UserProfile.DoesNotExist:
+                    return Message.objects.none()
+                """
             except SupportTicket.DoesNotExist:
                 logger.warning(f"Ticket with ID {ticket_id} not found")
                 return Message.objects.none()
