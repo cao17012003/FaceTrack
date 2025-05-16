@@ -68,6 +68,12 @@ const NotificationsPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
+  // Add state to track expanded notification
+  const [expandedNotificationId, setExpandedNotificationId] = useState(null);
+  
+  // State cho dialogue xác nhận xóa
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [notificationToDelete, setNotificationToDelete] = useState(null);
   
   // State cho chức năng tạo thông báo mới
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -223,18 +229,27 @@ const NotificationsPage = () => {
   
   const handleDeleteNotification = async (id) => {
     try {
+      // Chỉ admin mới có quyền xóa thông báo
+      if (!isAdmin()) {
+        setError('Chỉ admin mới có quyền xóa thông báo');
+        setDeleteConfirmOpen(false);
+        return;
+      }
+      
       await notificationApi.delete(id);
       fetchNotifications();
       setSuccess('Đã xóa thông báo thành công');
       handleCloseMenu();
+      setDeleteConfirmOpen(false);
     } catch (err) {
       console.error('Lỗi khi xóa thông báo:', err);
       if (err.response && err.response.data) {
         // Hiển thị thông báo lỗi chi tiết từ API
-        setError(`Không thể xóa thông báo: ${err.response.data.error || 'Bạn không có quyền thực hiện thao tác này'}`);
+        setError(`Không thể xóa thông báo: ${err.response.data.error || 'Chỉ admin mới có quyền xóa thông báo'}`);
       } else {
-        setError('Có lỗi xảy ra khi xóa thông báo. Chỉ quản trị viên mới có quyền xóa thông báo.');
+        setError('Có lỗi xảy ra khi xóa thông báo.');
       }
+      setDeleteConfirmOpen(false);
     }
   };
   
@@ -419,6 +434,35 @@ const NotificationsPage = () => {
     }
   };
   
+  const openDeleteConfirm = (notification) => {
+    setNotificationToDelete(notification);
+    setDeleteConfirmOpen(true);
+    handleCloseMenu();
+  };
+  
+  const closeDeleteConfirm = () => {
+    setDeleteConfirmOpen(false);
+    setNotificationToDelete(null);
+  };
+  
+  // Handler for expanding/collapsing notifications
+  const handleToggleExpand = (notificationId) => {
+    if (expandedNotificationId === notificationId) {
+      setExpandedNotificationId(null); // Collapse if already expanded
+    } else {
+      setExpandedNotificationId(notificationId); // Expand if not expanded
+      
+      // If notification is unread, mark it as read when expanded
+      const notification = notifications.find(n => n.id === notificationId);
+      if (notification) {
+        if ((isAdmin() && !notification.is_read_by_admin) || 
+            (!isAdmin() && !notification.is_read)) {
+          handleMarkAsRead(notificationId);
+        }
+      }
+    }
+  };
+  
   return (
     <Box>
       <Snackbar 
@@ -535,6 +579,7 @@ const NotificationsPage = () => {
               <React.Fragment key={notification.id}>
                 <ListItem 
                   alignItems="flex-start"
+                  onClick={() => handleToggleExpand(notification.id)}
                   sx={{ 
                     bgcolor: isAdmin() 
                       ? notification.is_read_by_admin ? 'transparent' : 'rgba(25, 118, 210, 0.05)'
@@ -545,7 +590,8 @@ const NotificationsPage = () => {
                       bgcolor: isAdmin()
                         ? notification.is_read_by_admin ? 'rgba(0, 0, 0, 0.04)' : 'rgba(25, 118, 210, 0.1)'
                         : notification.is_read ? 'rgba(0, 0, 0, 0.04)' : 'rgba(25, 118, 210, 0.1)',
-                    }
+                    },
+                    cursor: 'pointer' // Show pointer cursor to indicate clickable
                   }}
                 >
                   <ListItemAvatar>
@@ -611,20 +657,23 @@ const NotificationsPage = () => {
                     }
                     secondary={
                       <React.Fragment>
-                        <Typography
-                          sx={{ 
-                            display: 'block', 
-                            mt: 1,
-                            fontWeight: isAdmin() 
-                                ? notification.is_read_by_admin ? 'normal' : 500
-                                : notification.is_read ? 'normal' : 500,
-                          }}
-                          component="span"
-                          variant="body2"
-                          color="text.primary"
-                        >
-                          {notification.message}
-                        </Typography>
+                        {/* Only show message if notification is expanded */}
+                        {expandedNotificationId === notification.id && (
+                          <Typography
+                            sx={{ 
+                              display: 'block', 
+                              mt: 1,
+                              fontWeight: isAdmin() 
+                                  ? notification.is_read_by_admin ? 'normal' : 500
+                                  : notification.is_read ? 'normal' : 500,
+                            }}
+                            component="span"
+                            variant="body2"
+                            color="text.primary"
+                          >
+                            {notification.message}
+                          </Typography>
+                        )}
                         
                         <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-end' }}>
                           {isAdmin() 
@@ -633,7 +682,10 @@ const NotificationsPage = () => {
                                 size="small" 
                                 variant="outlined"
                                 color="primary"
-                                onClick={() => handleMarkAsRead(notification.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation(); // Prevent notification expansion
+                                  handleMarkAsRead(notification.id);
+                                }}
                                 startIcon={<CheckCircleIcon />}
                                 sx={{ mr: 1 }}
                               >
@@ -645,7 +697,10 @@ const NotificationsPage = () => {
                                 size="small" 
                                 variant="outlined"
                                 color="primary"
-                                onClick={() => handleMarkAsRead(notification.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation(); // Prevent notification expansion
+                                  handleMarkAsRead(notification.id);
+                                }}
                                 startIcon={<CheckCircleIcon />}
                                 sx={{ mr: 1 }}
                               >
@@ -653,12 +708,18 @@ const NotificationsPage = () => {
                               </Button>
                             )}
                           
-                          <IconButton
-                            size="small"
-                            onClick={(e) => handleOpenMenu(e, notification)}
-                          >
-                            <MoreVertIcon />
-                          </IconButton>
+                          {/* Only show menu button if user is admin or notification is unread */}
+                          {(isAdmin() || !notification.is_read) && (
+                            <IconButton
+                              size="small"
+                              onClick={(e) => {
+                                e.stopPropagation(); // Prevent notification expansion
+                                handleOpenMenu(e, notification);
+                              }}
+                            >
+                              <MoreVertIcon />
+                            </IconButton>
+                          )}
                         </Box>
                       </React.Fragment>
                     }
@@ -698,7 +759,9 @@ const NotificationsPage = () => {
         open={Boolean(anchorEl)}
         onClose={handleCloseMenu}
       >
-        {selectedNotification && !selectedNotification.is_read && (
+        {selectedNotification && (isAdmin() 
+          ? !selectedNotification.is_read_by_admin 
+          : !selectedNotification.is_read) && (
           <MenuItem onClick={() => {
             handleMarkAsRead(selectedNotification.id);
             handleCloseMenu();
@@ -711,9 +774,7 @@ const NotificationsPage = () => {
         )}
         
         {isAdmin() && (
-          <MenuItem onClick={() => {
-            handleDeleteNotification(selectedNotification?.id);
-          }}>
+          <MenuItem onClick={() => openDeleteConfirm(selectedNotification)}>
             <ListItemAvatar sx={{ minWidth: 36 }}>
               <DeleteIcon fontSize="small" color="error" />
             </ListItemAvatar>
@@ -934,6 +995,49 @@ const NotificationsPage = () => {
           >
             Gửi thông báo
           </Button>
+        </DialogActions>
+      </Dialog>
+      
+      {/* Dialog xác nhận xóa thông báo */}
+      <Dialog
+        open={deleteConfirmOpen}
+        onClose={closeDeleteConfirm}
+      >
+        <DialogTitle>Xác nhận xóa</DialogTitle>
+        <DialogContent>
+          {isAdmin() ? (
+            <Typography>
+              Bạn có chắc chắn muốn xóa thông báo này không? Hành động này không thể hoàn tác.
+            </Typography>
+          ) : (
+            <Typography color="error">
+              Chỉ admin mới có quyền xóa thông báo.
+            </Typography>
+          )}
+          {notificationToDelete && (
+            <Box sx={{ mt: 2, p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                {notificationToDelete.title}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {formatDate(notificationToDelete.created_at)}
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeDeleteConfirm}>
+            {isAdmin() ? 'Hủy bỏ' : 'Đóng'}
+          </Button>
+          {isAdmin() && (
+            <Button 
+              onClick={() => handleDeleteNotification(notificationToDelete?.id)} 
+              color="error" 
+              variant="contained"
+            >
+              Xóa
+            </Button>
+          )}
         </DialogActions>
       </Dialog>
     </Box>

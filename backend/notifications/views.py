@@ -90,30 +90,19 @@ class NotificationViewSet(viewsets.ModelViewSet):
             )
     
     def destroy(self, request, *args, **kwargs):
-        # Chỉ admin mới có thể xóa thông báo
+        # Chỉ admin mới có quyền xóa thông báo
         try:
             user_profile = UserProfile.objects.get(user=request.user)
-            if not user_profile.is_admin:
+            
+            if user_profile.is_admin:
+                # Admin có thể xóa bất kỳ thông báo nào
+                return super().destroy(request, *args, **kwargs)
+            else:
+                # Nhân viên không có quyền xóa thông báo
                 return Response(
-                    {'error': 'Bạn không có quyền xóa thông báo'},
+                    {'error': 'Chỉ admin mới có quyền xóa thông báo'},
                     status=status.HTTP_403_FORBIDDEN
                 )
-            # Kiểm tra xem thông báo có thuộc người dùng không (nếu không phải admin)
-            notification = self.get_object()
-            if not user_profile.is_admin:
-                try:
-                    employee = Employee.objects.get(username=request.user)
-                    if notification.employee != employee:
-                        return Response(
-                            {'error': 'Bạn không có quyền xóa thông báo của người khác'},
-                            status=status.HTTP_403_FORBIDDEN
-                        )
-                except Employee.DoesNotExist:
-                    return Response(
-                        {'error': 'Không tìm thấy thông tin nhân viên'},
-                        status=status.HTTP_404_NOT_FOUND
-                    )
-            return super().destroy(request, *args, **kwargs)
         except UserProfile.DoesNotExist:
             return Response(
                 {'error': 'Không tìm thấy thông tin người dùng'},
