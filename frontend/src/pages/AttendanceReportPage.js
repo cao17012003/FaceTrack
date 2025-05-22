@@ -140,15 +140,28 @@ const AttendanceReportPage = () => {
     return date.toLocaleDateString('en-US');
   };
   
+  const getStatusChip = (status) => {
+    switch(status) {
+      case 'on_time':
+        return <Chip label={t('checkin.onTime')} color="success" size="small" />;
+      case 'late':
+        return <Chip label={t('checkin.late')} color="warning" size="small" />;
+      case 'absent':
+        return <Chip label={t('checkin.absent')} color="error" size="small" />;
+      default:
+        return <Chip label={status || 'unknown'} size="small" />;
+    }
+  };
+  
   return (
     <Box>
       <Typography variant="h4" gutterBottom>
-        {t('report.title')}
+        {t('report.title', 'Báo cáo điểm danh')}
       </Typography>
       
-      {!isAdmin() && (
+      {!isAdmin() && currentUser?.user?.first_name && (
         <Typography variant="subtitle1" color="primary" gutterBottom>
-          {t('report.personalReport')}: {currentUser?.fullName}
+          {t('report.personalReport', 'Báo cáo cá nhân cho')}: {currentUser?.user?.first_name} {currentUser?.user?.last_name}
         </Typography>
       )}
       
@@ -163,20 +176,20 @@ const AttendanceReportPage = () => {
           <Grid item xs={12} sm={isAdmin() ? 3 : 6}>
             <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={dateLocale}>
               <DatePicker
-                label={t('calendar.startDate')}
+                label={t('calendar.startDate', 'Ngày bắt đầu')}
                 value={startDate}
                 onChange={(newValue) => setStartDate(newValue)}
-                renderInput={(params) => <TextField {...params} fullWidth />}
+                slotProps={{ textField: { fullWidth: true } }}
               />
             </LocalizationProvider>
           </Grid>
           <Grid item xs={12} sm={isAdmin() ? 3 : 6}>
             <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={dateLocale}>
               <DatePicker
-                label={t('calendar.endDate')}
+                label={t('calendar.endDate', 'Ngày kết thúc')}
                 value={endDate}
                 onChange={(newValue) => setEndDate(newValue)}
-                renderInput={(params) => <TextField {...params} fullWidth />}
+                slotProps={{ textField: { fullWidth: true } }}
               />
             </LocalizationProvider>
           </Grid>
@@ -185,13 +198,13 @@ const AttendanceReportPage = () => {
             <>
               <Grid item xs={12} sm={3}>
                 <FormControl fullWidth>
-                  <InputLabel>{t('calendar.employee')}</InputLabel>
+                  <InputLabel>{t('calendar.employee', 'Nhân viên')}</InputLabel>
                   <Select
                     value={selectedEmployee}
                     onChange={handleEmployeeChange}
-                    label={t('calendar.employee')}
+                    label={t('calendar.employee', 'Nhân viên')}
                   >
-                    <MenuItem value="">{t('common.all')}</MenuItem>
+                    <MenuItem value="">{t('common.all', 'Tất cả')}</MenuItem>
                     {employees.map(emp => (
                       <MenuItem key={emp.id} value={emp.employee_id}>
                         {emp.first_name} {emp.last_name}
@@ -202,13 +215,13 @@ const AttendanceReportPage = () => {
               </Grid>
               <Grid item xs={12} sm={3}>
                 <FormControl fullWidth>
-                  <InputLabel>{t('calendar.department')}</InputLabel>
+                  <InputLabel>{t('calendar.department', 'Phòng ban')}</InputLabel>
                   <Select
                     value={selectedDepartment}
                     onChange={handleDepartmentChange}
-                    label={t('calendar.department')}
+                    label={t('calendar.department', 'Phòng ban')}
                   >
-                    <MenuItem value="">{t('common.all')}</MenuItem>
+                    <MenuItem value="">{t('common.all', 'Tất cả')}</MenuItem>
                     {departments.map(dept => (
                       <MenuItem key={dept.id} value={dept.id}>
                         {dept.name}
@@ -226,7 +239,7 @@ const AttendanceReportPage = () => {
               onClick={handleSearchClick}
               disabled={loading}
             >
-              {loading ? <CircularProgress size={24} /> : t('common.search')}
+              {loading ? <CircularProgress size={24} /> : t('common.search', 'Tìm kiếm')}
             </Button>
           </Grid>
         </Grid>
@@ -242,11 +255,11 @@ const AttendanceReportPage = () => {
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell>{t('calendar.date')}</TableCell>
-              <TableCell>{t('checkin.employee')}</TableCell>
-              <TableCell>{t('calendar.checkinType')}</TableCell>
-              <TableCell>{t('calendar.checkoutType')}</TableCell>
-              <TableCell>{t('checkin.status')}</TableCell>
+              <TableCell>{t('calendar.date', 'Ngày')}</TableCell>
+              <TableCell>{t('checkin.employee', 'Nhân viên')}</TableCell>
+              <TableCell>{t('calendar.checkinTime', 'Giờ vào')}</TableCell>
+              <TableCell>{t('calendar.checkoutTime', 'Giờ ra')}</TableCell>
+              <TableCell>{t('checkin.status', 'Trạng thái')}</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -257,29 +270,24 @@ const AttendanceReportPage = () => {
                 </TableCell>
               </TableRow>
             ) : attendanceData.length > 0 ? (
-              attendanceData.map(attendance => (
-                <TableRow key={attendance.id}>
-                  <TableCell>{formatDate(attendance.attendance_date)}</TableCell>
-                  <TableCell>{attendance.employee_name}</TableCell>
+              attendanceData.map((attendance, index) => (
+                <TableRow key={attendance.id || index}>
+                  <TableCell>{formatDate(attendance.date)}</TableCell>
+                  <TableCell>
+                    {attendance.employee_name || (attendance.employee && 
+                      `${attendance.employee.first_name} ${attendance.employee.last_name}`)}
+                  </TableCell>
                   <TableCell>{formatTime(attendance.check_in_time)}</TableCell>
                   <TableCell>{formatTime(attendance.check_out_time)}</TableCell>
                   <TableCell>
-                    {attendance.is_late && (
-                      <Chip label={t('checkin.late')} color="warning" size="small" sx={{ mr: 1 }} />
-                    )}
-                    {attendance.left_early && (
-                      <Chip label={t('checkin.earlyLeave')} color="warning" size="small" sx={{ mr: 1 }} />
-                    )}
-                    {!attendance.is_late && !attendance.left_early && (
-                      <Chip label={t('checkin.onTime')} color="success" size="small" />
-                    )}
+                    {getStatusChip(attendance.status)}
                   </TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
                 <TableCell colSpan={5} align="center">
-                  {t('common.noData')}
+                  {t('common.noData', 'Không có dữ liệu')}
                 </TableCell>
               </TableRow>
             )}

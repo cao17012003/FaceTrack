@@ -175,7 +175,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
                 count = notifications.count()
                 notifications.update(is_read_by_admin=True, updated_at=timezone.now())
             else:
-                # Nếu không phải admin và không phải thao tác trên thông báo của chính mình
+            # Nếu không phải admin và không phải thao tác trên thông báo của chính mình
                 try:
                     user_employee = Employee.objects.get(username=request.user)
                     if user_employee.employee_id != employee_id:
@@ -247,7 +247,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
                 # Admin xem số thông báo chưa đọc bởi admin cho nhân viên cụ thể
                 count = Notification.objects.filter(employee=employee, is_read_by_admin=False).count()
             else:
-                # Nếu không phải admin và không phải thao tác trên thông báo của chính mình
+            # Nếu không phải admin và không phải thao tác trên thông báo của chính mình
                 try:
                     user_employee = Employee.objects.get(username=user)
                     if user_employee.employee_id != employee_id:

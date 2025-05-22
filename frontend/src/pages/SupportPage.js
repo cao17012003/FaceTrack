@@ -11,11 +11,21 @@ import {
   Tab,
   Badge,
   Alert,
-  useTheme
+  useTheme,
+  Container,
+  alpha,
+  Card,
+  CardContent,
+  IconButton,
+  Fade,
+  Stack
 } from '@mui/material';
 import { 
   SupportAgent as SupportIcon,
-  Add as AddIcon 
+  Add as AddIcon,
+  Refresh as RefreshIcon,
+  AssignmentTurnedIn as AssignmentIcon,
+  Help as HelpIcon
 } from '@mui/icons-material';
 import { supportApi } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -27,6 +37,7 @@ import ErrorHandler from '../components/support/ErrorHandler';
 
 const SupportPage = () => {
   const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
   const { isAdmin, currentUser, getUserInfo, getEmployeeId } = useAuth();
   const [loading, setLoading] = useState(true);
   const [tickets, setTickets] = useState([]);
@@ -42,6 +53,7 @@ const SupportPage = () => {
     total: 0
   });
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Lấy danh sách ticket
   const fetchTickets = async () => {
@@ -169,6 +181,7 @@ const SupportPage = () => {
       setTickets([]);
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   };
   
@@ -356,117 +369,298 @@ const SupportPage = () => {
     setErrorCode(null);
     fetchTickets();
   };
+
+  // Hàm làm mới dữ liệu
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    fetchTickets();
+  };
   
   return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" sx={{ display: 'flex', alignItems: 'center' }}>
-          <SupportIcon sx={{ mr: 1, fontSize: 35 }} />
-          Hỗ trợ & Khiếu nại
-        </Typography>
+    <Container maxWidth="xl" sx={{ py: 3 }}>
+      {/* Header Section - Modernized */}
+      <Box 
+        sx={{
+          position: 'relative',
+          borderRadius: 2,
+          overflow: 'hidden',
+          mb: 4,
+          p: 3,
+          background: isDark 
+            ? `linear-gradient(135deg, ${alpha(theme.palette.primary.dark, 0.7)}, ${alpha(theme.palette.primary.main, 0.4)})`
+            : `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.3)}, ${alpha(theme.palette.primary.main, 0.1)})`,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.05)'
+        }}
+      >
+        <Box
+          sx={{
+            position: 'absolute',
+            bottom: -20,
+            right: -20,
+            width: 150,
+            height: 150,
+            borderRadius: '50%',
+            background: isDark 
+              ? alpha(theme.palette.primary.main, 0.1)
+              : alpha(theme.palette.primary.main, 0.07),
+            zIndex: 0
+          }}
+        />
         
-        <Button
-          variant="contained"
-          color="primary"
-          startIcon={<AddIcon />}
-          onClick={handleCreateTicket}
-        >
-          Tạo yêu cầu hỗ trợ mới
-        </Button>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 1 }}>
+          <Box>
+            <Typography 
+              variant="h4" 
+              fontWeight="bold"
+              sx={{ 
+                display: 'flex', 
+                alignItems: 'center',
+                mb: 1
+              }}
+            >
+              <SupportIcon sx={{ mr: 1.5, fontSize: 35, color: theme.palette.primary.main }} />
+              Hỗ trợ & Khiếu nại
+            </Typography>
+            <Typography variant="body1" color="text.secondary">
+              Hệ thống hỗ trợ trực tuyến 24/7. Gửi yêu cầu và nhận phản hồi nhanh chóng từ đội ngũ hỗ trợ của chúng tôi.
+            </Typography>
+          </Box>
+          
+          <Stack direction="row" spacing={1}>
+            {!isAdmin() && (
+              <Button
+                variant="contained"
+                color="primary"
+                startIcon={<AddIcon />}
+                onClick={handleCreateTicket}
+                sx={{ 
+                  fontWeight: 600, 
+                  px: 3, 
+                  py: 1,
+                  borderRadius: 2,
+                  boxShadow: '0 4px 10px rgba(0,0,0,0.1)'
+                }}
+              >
+                Tạo yêu cầu mới
+              </Button>
+            )}
+            <IconButton 
+              color="primary" 
+              onClick={handleRefresh}
+              disabled={isRefreshing || loading}
+              sx={{ 
+                bgcolor: alpha(theme.palette.primary.main, 0.1),
+                '&:hover': {
+                  bgcolor: alpha(theme.palette.primary.main, 0.2)
+                }
+              }}
+            >
+              <RefreshIcon sx={{ animation: isRefreshing ? 'spin 1s linear infinite' : 'none' }} />
+            </IconButton>
+          </Stack>
+        </Box>
       </Box>
       
+      {/* Stats Section - Modernized */}
       {isAdmin() && (
-        <Paper sx={{ mb: 3, p: 2 }}>
-          <Typography variant="h6" sx={{ mb: 2 }}>Thống kê</Typography>
-          <Grid container spacing={2}>
-            <Grid item xs={6} md={3}>
-              <Paper 
-                sx={{ 
-                  p: 2, 
-                  textAlign: 'center',
-                  bgcolor: theme.palette.info.light,
-                  color: theme.palette.info.contrastText
-                }}
-              >
-                <Typography variant="h3">{ticketStats.open}</Typography>
-                <Typography variant="subtitle2">Đang mở</Typography>
-              </Paper>
-            </Grid>
-            <Grid item xs={6} md={3}>
-              <Paper 
-                sx={{ 
-                  p: 2, 
-                  textAlign: 'center',
-                  bgcolor: theme.palette.warning.light,
-                  color: theme.palette.warning.contrastText
-                }}
-              >
-                <Typography variant="h3">{ticketStats.in_progress}</Typography>
-                <Typography variant="subtitle2">Đang xử lý</Typography>
-              </Paper>
-            </Grid>
-            <Grid item xs={6} md={3}>
-              <Paper 
-                sx={{ 
-                  p: 2, 
-                  textAlign: 'center',
-                  bgcolor: theme.palette.success.light,
-                  color: theme.palette.success.contrastText
-                }}
-              >
-                <Typography variant="h3">{ticketStats.resolved}</Typography>
-                <Typography variant="subtitle2">Đã giải quyết</Typography>
-              </Paper>
-            </Grid>
-            <Grid item xs={6} md={3}>
-              <Paper 
-                sx={{ 
-                  p: 2, 
-                  textAlign: 'center',
-                  bgcolor: theme.palette.grey[300],
-                }}
-              >
-                <Typography variant="h3">{ticketStats.closed}</Typography>
-                <Typography variant="subtitle2">Đã đóng</Typography>
-              </Paper>
-            </Grid>
-          </Grid>
-        </Paper>
-      )}
-      
-      {error && !errorCode && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
-      
-      {isAdmin() ? (
-        <Tabs 
-          value={tabValue} 
-          onChange={handleChangeTab} 
-          sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}
+        <Card 
+          sx={{ 
+            mb: 4,
+            borderRadius: 2,
+            overflow: 'hidden',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
+            background: isDark 
+              ? alpha(theme.palette.background.paper, 0.6)
+              : theme.palette.background.paper
+          }}
         >
-          <Tab label="Tất cả" />
-          <Tab 
-            label="Đang mở" 
-            icon={ticketStats.open > 0 ? <Badge badgeContent={ticketStats.open} color="error" /> : null}
-            iconPosition="end"
-          />
-          <Tab 
-            label="Đang xử lý"
-            icon={ticketStats.in_progress > 0 ? <Badge badgeContent={ticketStats.in_progress} color="warning" /> : null}
-            iconPosition="end"
-          />
-          <Tab label="Đã giải quyết" />
-          <Tab label="Đã đóng" />
-        </Tabs>
-      ) : (
-        <Divider sx={{ mb: 3 }} />
+          <CardContent>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <AssignmentIcon sx={{ color: theme.palette.primary.main, mr: 1 }} />
+              <Typography variant="h6" fontWeight="600">Thống kê yêu cầu hỗ trợ</Typography>
+            </Box>
+            
+            <Grid container spacing={2}>
+              <Grid item xs={6} sm={3}>
+                <Card 
+                  sx={{ 
+                    p: 2,
+                    height: '100%',
+                    background: isDark 
+                      ? `linear-gradient(45deg, ${alpha(theme.palette.info.dark, 0.8)}, ${alpha(theme.palette.info.main, 0.5)})`
+                      : `linear-gradient(45deg, ${alpha(theme.palette.info.light, 0.5)}, ${alpha(theme.palette.info.main, 0.15)})`,
+                    color: isDark ? '#fff' : 'inherit',
+                    boxShadow: '0 4px 15px rgba(0,0,0,0.07)',
+                    borderRadius: 2,
+                    transition: 'transform 0.3s',
+                    '&:hover': {
+                      transform: 'translateY(-5px)'
+                    }
+                  }}
+                >
+                  <Typography variant="h3" fontWeight="bold" align="center">{ticketStats.open}</Typography>
+                  <Typography variant="subtitle2" align="center" sx={{ opacity: 0.9 }}>Đang mở</Typography>
+                </Card>
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <Card 
+                  sx={{ 
+                    p: 2,
+                    height: '100%',
+                    background: isDark 
+                      ? `linear-gradient(45deg, ${alpha(theme.palette.warning.dark, 0.8)}, ${alpha(theme.palette.warning.main, 0.5)})`
+                      : `linear-gradient(45deg, ${alpha(theme.palette.warning.light, 0.5)}, ${alpha(theme.palette.warning.main, 0.15)})`,
+                    color: isDark ? '#fff' : 'inherit',
+                    boxShadow: '0 4px 15px rgba(0,0,0,0.07)',
+                    borderRadius: 2,
+                    transition: 'transform 0.3s',
+                    '&:hover': {
+                      transform: 'translateY(-5px)'
+                    }
+                  }}
+                >
+                  <Typography variant="h3" fontWeight="bold" align="center">{ticketStats.in_progress}</Typography>
+                  <Typography variant="subtitle2" align="center" sx={{ opacity: 0.9 }}>Đang xử lý</Typography>
+                </Card>
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <Card 
+                  sx={{ 
+                    p: 2,
+                    height: '100%',
+                    background: isDark 
+                      ? `linear-gradient(45deg, ${alpha(theme.palette.success.dark, 0.8)}, ${alpha(theme.palette.success.main, 0.5)})`
+                      : `linear-gradient(45deg, ${alpha(theme.palette.success.light, 0.5)}, ${alpha(theme.palette.success.main, 0.15)})`,
+                    color: isDark ? '#fff' : 'inherit',
+                    boxShadow: '0 4px 15px rgba(0,0,0,0.07)',
+                    borderRadius: 2,
+                    transition: 'transform 0.3s',
+                    '&:hover': {
+                      transform: 'translateY(-5px)'
+                    }
+                  }}
+                >
+                  <Typography variant="h3" fontWeight="bold" align="center">{ticketStats.resolved}</Typography>
+                  <Typography variant="subtitle2" align="center" sx={{ opacity: 0.9 }}>Đã giải quyết</Typography>
+                </Card>
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <Card 
+                  sx={{ 
+                    p: 2,
+                    height: '100%',
+                    background: isDark 
+                      ? `linear-gradient(45deg, ${alpha(theme.palette.grey[700], 0.8)}, ${alpha(theme.palette.grey[600], 0.5)})`
+                      : `linear-gradient(45deg, ${alpha(theme.palette.grey[300], 0.8)}, ${alpha(theme.palette.grey[400], 0.3)})`,
+                    boxShadow: '0 4px 15px rgba(0,0,0,0.07)',
+                    borderRadius: 2,
+                    transition: 'transform 0.3s',
+                    '&:hover': {
+                      transform: 'translateY(-5px)'
+                    }
+                  }}
+                >
+                  <Typography variant="h3" fontWeight="bold" align="center">{ticketStats.closed}</Typography>
+                  <Typography variant="subtitle2" align="center" sx={{ opacity: 0.9 }}>Đã đóng</Typography>
+                </Card>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
       )}
       
+      {/* Error Alert - Styled */}
+      {error && !errorCode && (
+        <Fade in={true}>
+          <Alert 
+            severity="error" 
+            sx={{ 
+              mb: 3, 
+              borderRadius: 2,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+            }}
+          >
+            {error}
+          </Alert>
+        </Fade>
+      )}
+      
+      {/* Tabs with animation for Admin */}
+      {isAdmin() ? (
+        <Paper 
+          sx={{ 
+            mb: 3,
+            borderRadius: 2,
+            overflow: 'hidden',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.03)'
+          }}
+        >
+          <Tabs 
+            value={tabValue} 
+            onChange={handleChangeTab} 
+            variant="scrollable"
+            scrollButtons="auto"
+            sx={{ 
+              borderBottom: 1,
+              borderColor: 'divider',
+              '& .MuiTab-root': {
+                fontWeight: 500,
+                transition: 'all 0.2s',
+                '&:hover': {
+                  bgcolor: alpha(theme.palette.primary.main, 0.04)
+                }
+              }
+            }}
+          >
+            <Tab 
+              label="Tất cả" 
+              sx={{ 
+                fontSize: '0.95rem',
+                py: 1.5
+              }}
+            />
+            <Tab 
+              label="Đang mở" 
+              icon={ticketStats.open > 0 ? <Badge badgeContent={ticketStats.open} color="error" /> : null}
+              iconPosition="end"
+              sx={{ fontSize: '0.95rem', py: 1.5 }}
+            />
+            <Tab 
+              label="Đang xử lý"
+              icon={ticketStats.in_progress > 0 ? <Badge badgeContent={ticketStats.in_progress} color="warning" /> : null}
+              iconPosition="end"
+              sx={{ fontSize: '0.95rem', py: 1.5 }}
+            />
+            <Tab 
+              label="Đã giải quyết" 
+              sx={{ fontSize: '0.95rem', py: 1.5 }}
+            />
+            <Tab 
+              label="Đã đóng" 
+              sx={{ fontSize: '0.95rem', py: 1.5 }}
+            />
+          </Tabs>
+        </Paper>
+      ) : (
+        <Divider sx={{ mb: 3, opacity: 0.7 }} />
+      )}
+      
+      {/* Loading, Error or Content */}
       {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-          <CircularProgress />
+        <Box 
+          sx={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            justifyContent: 'center', 
+            alignItems: 'center', 
+            mt: 6,
+            mb: 6 
+          }}
+        >
+          <CircularProgress size={50} thickness={4} />
+          <Typography variant="body1" color="text.secondary" sx={{ mt: 2 }}>
+            Đang tải yêu cầu hỗ trợ...
+          </Typography>
         </Box>
       ) : errorCode ? (
         <ErrorHandler 
@@ -476,11 +670,24 @@ const SupportPage = () => {
           onCreateNewTicket={handleCreateTicket}
         />
       ) : tickets.length === 0 ? (
-        <EmptySupportState 
-          onCreateTicket={handleCreateTicket} 
-          isOffline={!navigator.onLine} 
-          hasServerError={error && error.includes('máy chủ')}
-        />
+        <Card
+          sx={{
+            p: 3,
+            borderRadius: 2,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.04)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: 400
+          }}
+        >
+          <EmptySupportState 
+            onCreateTicket={handleCreateTicket} 
+            isOffline={!navigator.onLine} 
+            hasServerError={error && error.includes('máy chủ')}
+          />
+        </Card>
       ) : (
         <Grid container spacing={3}>
           <Grid item xs={12} md={selectedTicket ? 4 : 12}>
@@ -504,12 +711,53 @@ const SupportPage = () => {
         </Grid>
       )}
       
+      {/* Support Dialog */}
       <NewTicketDialog 
         open={createDialogOpen} 
         onClose={handleCloseCreateDialog} 
         onTicketCreated={handleTicketCreated}
       />
-    </Box>
+      
+      {/* Help Banner at Bottom */}
+      {!isAdmin() && (
+        <Card
+          sx={{
+            mt: 4,
+            p: 2,
+            background: isDark 
+              ? alpha(theme.palette.info.dark, 0.2)
+              : alpha(theme.palette.info.light, 0.2),
+            borderRadius: 2,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <HelpIcon sx={{ color: theme.palette.info.main, mr: 1.5, fontSize: 20 }} />
+            <Typography variant="body2">
+              Cần thêm trợ giúp? Liên hệ với đội ngũ chúng tôi qua email: support@facetrack-ai.com
+            </Typography>
+          </Box>
+          <Button
+            variant="outlined"
+            size="small"
+            color="info"
+            onClick={handleCreateTicket}
+          >
+            Tạo yêu cầu
+          </Button>
+        </Card>
+      )}
+
+      {/* CSS Animation for spinner */}
+      <style jsx global>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
+    </Container>
   );
 };
 

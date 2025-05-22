@@ -324,9 +324,15 @@ const InfoBanner = () => {
 };
 
 const HomePage = () => {
-  const { currentUser, isAdmin, isEmployee } = useAuth();
+  const { currentUser, isAdmin, isEmployee, getUserInfo } = useAuth();
   const { t } = useTranslation();
   const theme = useTheme();
+  
+  // Log để kiểm tra dữ liệu
+  console.log("currentUser:", currentUser);
+  console.log("getUserInfo:", getUserInfo());
+  console.log("isAdmin:", isAdmin());
+  
   const [stats, setStats] = useState({
     employees: 0,
     departments: 0,
@@ -385,7 +391,9 @@ const HomePage = () => {
           }
         }}
       >
-        {t('home.welcome')}, {currentUser?.fullName || 'User'}!
+        {t('home.welcome')}, {currentUser && currentUser.user 
+          ? `${currentUser.user.first_name || ''} ${currentUser.user.last_name || ''}`.trim() || currentUser.user.username
+          : 'User'}!
       </Typography>
       
       <InfoBanner />

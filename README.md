@@ -21,18 +21,21 @@ FaceTrack-AI là hệ thống chấm công hiện đại sử dụng trí tuệ 
 ### Cài đặt
 
 1. Clone repository
+
 ```bash
 git clone https://github.com/your-username/FaceTrack-AI.git
 cd FaceTrack-AI
 ```
 
 2. Cài đặt dependencies cho backend
+
 ```bash
 cd backend
 pip install -r requirements.txt
 ```
 
 3. Cài đặt dependencies cho frontend
+
 ```bash
 cd ../frontend
 npm install
@@ -45,18 +48,21 @@ npm install
 Chúng tôi cung cấp các script shell để dễ dàng chạy và quản lý ứng dụng:
 
 1. Chạy cả backend và frontend
+
 ```bash
 chmod +x run_app.sh
 ./run_app.sh
 ```
 
 2. Dừng tất cả các dịch vụ
+
 ```bash
 chmod +x stop_app.sh
 ./stop_app.sh
 ```
 
 3. Debug ứng dụng
+
 ```bash
 chmod +x debug_app.sh
 ./debug_app.sh
@@ -65,12 +71,14 @@ chmod +x debug_app.sh
 #### Chạy thủ công
 
 1. Chạy backend (Django)
+
 ```bash
 cd backend
 python manage.py runserver
 ```
 
 2. Chạy frontend (React)
+
 ```bash
 cd frontend
 npm start
@@ -81,7 +89,7 @@ npm start
 Script `debug_app.sh` cung cấp nhiều công cụ để debug:
 
 - Kiểm tra trạng thái backend/frontend
-- Xem logs 
+- Xem logs
 - Kiểm tra kết nối cơ sở dữ liệu
 - Theo dõi logs theo thời gian thực
 - Chạy các test cơ bản
@@ -123,4 +131,4 @@ assert all(face_obj["is_real"] is True for face_obj in face_objs)
 
 ### Đóng góp
 
-Vui lòng đọc [CONTRIBUTING.md](CONTRIBUTING.md) để biết chi tiết về quy trình gửi pull request. 
+Vui lòng đọc [CONTRIBUTING.md](CONTRIBUTING.md) để biết chi tiết về quy trình gửi pull request.

@@ -155,7 +155,7 @@ function Layout({ children }) {
     const commonMenuItems = [
       { text: t('menu.home'), path: '/', icon: <DashboardIcon />, allowedRoles: ['admin', 'employee'] },
       { text: t('menu.checkin'), path: '/check-in', icon: <CameraIcon />, allowedRoles: ['admin', 'employee'] },
-      { text: t('menu.reports'), path: '/attendance-reports', icon: <AccessTimeIcon />, allowedRoles: ['admin', 'employee'] },
+      { text: t('menu.reports'), path: '/reports', icon: <AccessTimeIcon />, allowedRoles: ['admin', 'employee'] },
       { 
         text: t('menu.notifications'), 
         path: '/notifications', 

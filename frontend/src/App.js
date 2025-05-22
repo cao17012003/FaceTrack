@@ -200,6 +200,20 @@ function App() {
                     </ProtectedRoute>
                   } 
                 />
+                <Route 
+                  path="/reports" 
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <AttendanceReportPage />
+                      </Layout>
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/Attendance-Report" 
+                  element={<Navigate to="/reports" />} 
+                />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Router>

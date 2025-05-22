@@ -114,7 +114,7 @@ const NotificationsPage = () => {
         filtered = filtered.filter(n => !n.is_read_by_admin);
       } else {
         // Nhân viên xem thông báo chưa đọc bởi nhân viên
-        filtered = filtered.filter(n => !n.is_read);
+      filtered = filtered.filter(n => !n.is_read);
       }
     } else if (activeTab === 2) {
       if (isAdmin()) {
@@ -122,7 +122,7 @@ const NotificationsPage = () => {
         filtered = filtered.filter(n => n.is_read_by_admin);
       } else {
         // Nhân viên xem thông báo đã đọc bởi nhân viên
-        filtered = filtered.filter(n => n.is_read);
+      filtered = filtered.filter(n => n.is_read);
       }
     }
     
@@ -645,43 +645,43 @@ const NotificationsPage = () => {
                             </Grid>
                           )
                           : !notification.is_read && (
-                            <Grid item>
-                              <Chip 
-                                size="small" 
-                                color="error" 
-                                label="Mới"
-                              />
-                            </Grid>
-                          )}
+                          <Grid item>
+                            <Chip 
+                              size="small" 
+                              color="error" 
+                              label="Mới"
+                            />
+                          </Grid>
+                        )}
                       </Grid>
                     }
                     secondary={
                       <React.Fragment>
                         {/* Only show message if notification is expanded */}
                         {expandedNotificationId === notification.id && (
-                          <Typography
-                            sx={{ 
-                              display: 'block', 
-                              mt: 1,
+                        <Typography
+                          sx={{ 
+                            display: 'block', 
+                            mt: 1,
                               fontWeight: isAdmin() 
                                   ? notification.is_read_by_admin ? 'normal' : 500
                                   : notification.is_read ? 'normal' : 500,
-                            }}
-                            component="span"
-                            variant="body2"
-                            color="text.primary"
-                          >
-                            {notification.message}
-                          </Typography>
+                          }}
+                          component="span"
+                          variant="body2"
+                          color="text.primary"
+                        >
+                          {notification.message}
+                        </Typography>
                         )}
                         
                         <Box sx={{ mt: 1, display: 'flex', justifyContent: 'flex-end' }}>
                           {isAdmin() 
                             ? !notification.is_read_by_admin && (
-                              <Button 
-                                size="small" 
-                                variant="outlined"
-                                color="primary"
+                            <Button 
+                              size="small" 
+                              variant="outlined"
+                              color="primary"
                                 onClick={(e) => {
                                   e.stopPropagation(); // Prevent notification expansion
                                   handleMarkAsRead(notification.id);
@@ -701,24 +701,24 @@ const NotificationsPage = () => {
                                   e.stopPropagation(); // Prevent notification expansion
                                   handleMarkAsRead(notification.id);
                                 }}
-                                startIcon={<CheckCircleIcon />}
-                                sx={{ mr: 1 }}
-                              >
-                                Đánh dấu đã đọc
-                              </Button>
-                            )}
+                              startIcon={<CheckCircleIcon />}
+                              sx={{ mr: 1 }}
+                            >
+                              Đánh dấu đã đọc
+                            </Button>
+                          )}
                           
                           {/* Only show menu button if user is admin or notification is unread */}
                           {(isAdmin() || !notification.is_read) && (
-                            <IconButton
-                              size="small"
+                          <IconButton
+                            size="small"
                               onClick={(e) => {
                                 e.stopPropagation(); // Prevent notification expansion
                                 handleOpenMenu(e, notification);
                               }}
-                            >
-                              <MoreVertIcon />
-                            </IconButton>
+                          >
+                            <MoreVertIcon />
+                          </IconButton>
                           )}
                         </Box>
                       </React.Fragment>
