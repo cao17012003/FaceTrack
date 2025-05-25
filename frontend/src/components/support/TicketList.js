@@ -133,11 +133,11 @@ const TicketList = ({ tickets, selectedTicket, onSelectTicket, isAdmin }) => {
           {tickets.map((ticket) => {
             const isSelected = selectedTicket && selectedTicket.id === ticket.id;
             return (
-              <React.Fragment key={ticket.id}>
-                <ListItem 
-                  alignItems="flex-start" 
-                  sx={{ 
-                    cursor: 'pointer',
+            <React.Fragment key={ticket.id}>
+              <ListItem 
+                alignItems="flex-start" 
+                sx={{ 
+                  cursor: 'pointer',
                     bgcolor: isSelected 
                       ? isDark 
                         ? alpha(theme.palette.primary.main, 0.15) 
@@ -146,21 +146,21 @@ const TicketList = ({ tickets, selectedTicket, onSelectTicket, isAdmin }) => {
                     transition: 'all 0.2s ease',
                     borderLeft: isSelected ? `4px solid ${theme.palette.primary.main}` : '4px solid transparent',
                     py: 1.5,
-                    '&:hover': {
+                  '&:hover': {
                       bgcolor: isDark 
                         ? alpha(theme.palette.primary.main, 0.08)
                         : alpha(theme.palette.primary.light, 0.05)
-                    }
-                  }}
-                  onClick={() => onSelectTicket(ticket)}
-                >
-                  <ListItemAvatar>
-                    <Badge
-                      badgeContent={ticket.unread_messages_count}
-                      color="error"
+                  }
+                }}
+                onClick={() => onSelectTicket(ticket)}
+              >
+                <ListItemAvatar>
+                  <Badge
+                    badgeContent={ticket.unread_messages_count}
+                    color="error"
                       invisible={true}
                       overlap="circular"
-                    >
+                  >
                       <Avatar 
                         sx={{ 
                           bgcolor: isSelected 
@@ -175,11 +175,11 @@ const TicketList = ({ tickets, selectedTicket, onSelectTicket, isAdmin }) => {
                         }}
                       >
                         {isSelected ? <MessageIcon /> : <FileIcon />}
-                      </Avatar>
-                    </Badge>
-                  </ListItemAvatar>
-                  <ListItemText
-                    primary={
+                    </Avatar>
+                  </Badge>
+                </ListItemAvatar>
+                <ListItemText
+                  primary={
                       <Typography 
                         variant="subtitle1" 
                         component="div" 
@@ -189,81 +189,81 @@ const TicketList = ({ tickets, selectedTicket, onSelectTicket, isAdmin }) => {
                           color: isSelected ? theme.palette.primary.main : 'inherit'
                         }}
                       >
-                        {ticket.title}
-                      </Typography>
-                    }
-                    secondary={
-                      <React.Fragment>
+                      {ticket.title}
+                    </Typography>
+                  }
+                  secondary={
+                    <React.Fragment>
                         <Box sx={{ display: 'flex', alignItems: 'center', mt: 1, mb: 1, flexWrap: 'wrap', gap: 0.5 }}>
-                          <Chip 
-                            icon={getStatusIcon(ticket.status)} 
-                            label={getStatusText(ticket.status)} 
-                            size="small" 
-                            color={getStatusColor(ticket.status)}
-                            variant="outlined"
+                        <Chip 
+                          icon={getStatusIcon(ticket.status)} 
+                          label={getStatusText(ticket.status)} 
+                          size="small" 
+                          color={getStatusColor(ticket.status)}
+                          variant="outlined"
                             sx={{ 
                               mr: 1, 
                               borderRadius: '4px',
                               '& .MuiChip-label': { px: 1, py: 0.1 }
                             }}
-                          />
-                          <Chip 
-                            icon={getPriorityIcon(ticket.priority)} 
-                            label={getPriorityText(ticket.priority)} 
-                            size="small" 
-                            variant="outlined"
+                        />
+                        <Chip 
+                          icon={getPriorityIcon(ticket.priority)} 
+                          label={getPriorityText(ticket.priority)} 
+                          size="small" 
+                          variant="outlined"
                             sx={{ 
                               borderRadius: '4px',
                               '& .MuiChip-label': { px: 1, py: 0.1 }
                             }}
-                          />
-                        </Box>
-                        
-                        {isAdmin ? (
-                          <Typography
-                            variant="body2"
-                            color="text.primary"
+                        />
+                      </Box>
+                      
+                      {isAdmin ? (
+                        <Typography
+                          variant="body2"
+                          color="text.primary"
                             sx={{ 
                               display: 'block',
                               fontWeight: 500
                             }}
-                          >
-                            {ticket.employee_name || 'Nhân viên không xác định'}
-                          </Typography>
-                        ) : null}
-                        
-                        {ticket.latest_message ? (
-                          <Typography
-                            variant="body2"
+                        >
+                          {ticket.employee_name || 'Nhân viên không xác định'}
+                        </Typography>
+                      ) : null}
+                      
+                      {ticket.latest_message ? (
+                        <Typography
+                          variant="body2"
                             color="text.secondary"
-                            sx={{ 
-                              display: 'block',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
+                          sx={{ 
+                            display: 'block',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
                               maxWidth: '100%',
                               mt: 0.5
-                            }}
-                          >
-                            {ticket.latest_message.content}
-                          </Typography>
-                        ) : (
-                          <Typography
-                            variant="body2"
-                            color="text.secondary"
+                          }}
+                        >
+                          {ticket.latest_message.content}
+                        </Typography>
+                      ) : (
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
                             sx={{ display: 'block', mt: 0.5, fontStyle: 'italic' }}
-                          >
-                            Chưa có tin nhắn
-                          </Typography>
-                        )}
-                        
+                        >
+                          Chưa có tin nhắn
+                        </Typography>
+                      )}
+                      
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 0.5 }}>
-                          <Typography
-                            variant="caption"
-                            color="text.secondary"
-                          >
-                            {ticket.updated_at ? format(new Date(ticket.updated_at), 'dd/MM/yyyy HH:mm') : ''}
-                          </Typography>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                      >
+                        {ticket.updated_at ? format(new Date(ticket.updated_at), 'dd/MM/yyyy HH:mm') : ''}
+                      </Typography>
                           
                           {ticket.unread_messages_count > 0 && (
                             <Chip
@@ -278,12 +278,12 @@ const TicketList = ({ tickets, selectedTicket, onSelectTicket, isAdmin }) => {
                             />
                           )}
                         </Box>
-                      </React.Fragment>
-                    }
-                  />
-                </ListItem>
+                    </React.Fragment>
+                  }
+                />
+              </ListItem>
                 <Divider component="li" variant="inset" sx={{ ml: 0, opacity: isDark ? 0.1 : 0.6 }} />
-              </React.Fragment>
+            </React.Fragment>
             );
           })}
         </List>

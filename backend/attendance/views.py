@@ -319,6 +319,21 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 employee = best_face_data.employee
                 
                 logger.info(f"Nhận diện thành công: {employee.first_name} {employee.last_name}")
+
+                # PHÂN QUYỀN: Nếu user đang đăng nhập, chỉ cho phép check-in bằng khuôn mặt của chính mình
+                if request.user and request.user.is_authenticated:
+                    try:
+                        current_employee = Employee.objects.get(username=request.user)
+                        if employee != current_employee:
+                            return Response(
+                                {'error': 'Bạn chỉ được phép check-in bằng khuôn mặt của chính mình.'},
+                                status=status.HTTP_403_FORBIDDEN
+                            )
+                    except Employee.DoesNotExist:
+                        return Response(
+                            {'error': 'Không tìm thấy thông tin nhân viên của bạn.'},
+                            status=status.HTTP_404_NOT_FOUND
+                        )
                 
                 # Kiểm tra trạng thái điểm danh hiện tại
                 today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)

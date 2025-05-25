@@ -408,7 +408,7 @@ const SupportPage = () => {
         />
         
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 1 }}>
-          <Box>
+    <Box>
             <Typography 
               variant="h4" 
               fontWeight="bold"
@@ -419,20 +419,20 @@ const SupportPage = () => {
               }}
             >
               <SupportIcon sx={{ mr: 1.5, fontSize: 35, color: theme.palette.primary.main }} />
-              Hỗ trợ & Khiếu nại
-            </Typography>
+          Hỗ trợ & Khiếu nại
+        </Typography>
             <Typography variant="body1" color="text.secondary">
               Hệ thống hỗ trợ trực tuyến 24/7. Gửi yêu cầu và nhận phản hồi nhanh chóng từ đội ngũ hỗ trợ của chúng tôi.
             </Typography>
           </Box>
-          
+        
           <Stack direction="row" spacing={1}>
             {!isAdmin() && (
-              <Button
-                variant="contained"
-                color="primary"
-                startIcon={<AddIcon />}
-                onClick={handleCreateTicket}
+        <Button
+          variant="contained"
+          color="primary"
+          startIcon={<AddIcon />}
+          onClick={handleCreateTicket}
                 sx={{ 
                   fontWeight: 600, 
                   px: 3, 
@@ -440,9 +440,9 @@ const SupportPage = () => {
                   borderRadius: 2,
                   boxShadow: '0 4px 10px rgba(0,0,0,0.1)'
                 }}
-              >
+        >
                 Tạo yêu cầu mới
-              </Button>
+        </Button>
             )}
             <IconButton 
               color="primary" 
@@ -480,11 +480,11 @@ const SupportPage = () => {
               <Typography variant="h6" fontWeight="600">Thống kê yêu cầu hỗ trợ</Typography>
             </Box>
             
-            <Grid container spacing={2}>
+          <Grid container spacing={2}>
               <Grid item xs={6} sm={3}>
                 <Card 
-                  sx={{ 
-                    p: 2,
+                sx={{ 
+                  p: 2, 
                     height: '100%',
                     background: isDark 
                       ? `linear-gradient(45deg, ${alpha(theme.palette.info.dark, 0.8)}, ${alpha(theme.palette.info.main, 0.5)})`
@@ -496,16 +496,16 @@ const SupportPage = () => {
                     '&:hover': {
                       transform: 'translateY(-5px)'
                     }
-                  }}
-                >
+                }}
+              >
                   <Typography variant="h3" fontWeight="bold" align="center">{ticketStats.open}</Typography>
                   <Typography variant="subtitle2" align="center" sx={{ opacity: 0.9 }}>Đang mở</Typography>
                 </Card>
-              </Grid>
+            </Grid>
               <Grid item xs={6} sm={3}>
                 <Card 
-                  sx={{ 
-                    p: 2,
+                sx={{ 
+                  p: 2, 
                     height: '100%',
                     background: isDark 
                       ? `linear-gradient(45deg, ${alpha(theme.palette.warning.dark, 0.8)}, ${alpha(theme.palette.warning.main, 0.5)})`
@@ -517,16 +517,16 @@ const SupportPage = () => {
                     '&:hover': {
                       transform: 'translateY(-5px)'
                     }
-                  }}
-                >
+                }}
+              >
                   <Typography variant="h3" fontWeight="bold" align="center">{ticketStats.in_progress}</Typography>
                   <Typography variant="subtitle2" align="center" sx={{ opacity: 0.9 }}>Đang xử lý</Typography>
                 </Card>
-              </Grid>
+            </Grid>
               <Grid item xs={6} sm={3}>
                 <Card 
-                  sx={{ 
-                    p: 2,
+                sx={{ 
+                  p: 2, 
                     height: '100%',
                     background: isDark 
                       ? `linear-gradient(45deg, ${alpha(theme.palette.success.dark, 0.8)}, ${alpha(theme.palette.success.main, 0.5)})`
@@ -538,16 +538,16 @@ const SupportPage = () => {
                     '&:hover': {
                       transform: 'translateY(-5px)'
                     }
-                  }}
-                >
+                }}
+              >
                   <Typography variant="h3" fontWeight="bold" align="center">{ticketStats.resolved}</Typography>
                   <Typography variant="subtitle2" align="center" sx={{ opacity: 0.9 }}>Đã giải quyết</Typography>
                 </Card>
-              </Grid>
+            </Grid>
               <Grid item xs={6} sm={3}>
                 <Card 
-                  sx={{ 
-                    p: 2,
+                sx={{ 
+                  p: 2, 
                     height: '100%',
                     background: isDark 
                       ? `linear-gradient(45deg, ${alpha(theme.palette.grey[700], 0.8)}, ${alpha(theme.palette.grey[600], 0.5)})`
@@ -558,8 +558,8 @@ const SupportPage = () => {
                     '&:hover': {
                       transform: 'translateY(-5px)'
                     }
-                  }}
-                >
+                }}
+              >
                   <Typography variant="h3" fontWeight="bold" align="center">{ticketStats.closed}</Typography>
                   <Typography variant="subtitle2" align="center" sx={{ opacity: 0.9 }}>Đã đóng</Typography>
                 </Card>
@@ -580,8 +580,8 @@ const SupportPage = () => {
               boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
             }}
           >
-            {error}
-          </Alert>
+          {error}
+        </Alert>
         </Fade>
       )}
       
@@ -595,9 +595,9 @@ const SupportPage = () => {
             boxShadow: '0 4px 12px rgba(0,0,0,0.03)'
           }}
         >
-          <Tabs 
-            value={tabValue} 
-            onChange={handleChangeTab} 
+        <Tabs 
+          value={tabValue} 
+          onChange={handleChangeTab} 
             variant="scrollable"
             scrollButtons="auto"
             sx={{ 
@@ -611,7 +611,7 @@ const SupportPage = () => {
                 }
               }
             }}
-          >
+        >
             <Tab 
               label="Tất cả" 
               sx={{ 
@@ -619,18 +619,18 @@ const SupportPage = () => {
                 py: 1.5
               }}
             />
-            <Tab 
-              label="Đang mở" 
-              icon={ticketStats.open > 0 ? <Badge badgeContent={ticketStats.open} color="error" /> : null}
-              iconPosition="end"
+          <Tab 
+            label="Đang mở" 
+            icon={ticketStats.open > 0 ? <Badge badgeContent={ticketStats.open} color="error" /> : null}
+            iconPosition="end"
               sx={{ fontSize: '0.95rem', py: 1.5 }}
-            />
-            <Tab 
-              label="Đang xử lý"
-              icon={ticketStats.in_progress > 0 ? <Badge badgeContent={ticketStats.in_progress} color="warning" /> : null}
-              iconPosition="end"
+          />
+          <Tab 
+            label="Đang xử lý"
+            icon={ticketStats.in_progress > 0 ? <Badge badgeContent={ticketStats.in_progress} color="warning" /> : null}
+            iconPosition="end"
               sx={{ fontSize: '0.95rem', py: 1.5 }}
-            />
+          />
             <Tab 
               label="Đã giải quyết" 
               sx={{ fontSize: '0.95rem', py: 1.5 }}
@@ -639,7 +639,7 @@ const SupportPage = () => {
               label="Đã đóng" 
               sx={{ fontSize: '0.95rem', py: 1.5 }}
             />
-          </Tabs>
+        </Tabs>
         </Paper>
       ) : (
         <Divider sx={{ mb: 3, opacity: 0.7 }} />
@@ -682,11 +682,11 @@ const SupportPage = () => {
             height: 400
           }}
         >
-          <EmptySupportState 
-            onCreateTicket={handleCreateTicket} 
-            isOffline={!navigator.onLine} 
-            hasServerError={error && error.includes('máy chủ')}
-          />
+        <EmptySupportState 
+          onCreateTicket={handleCreateTicket} 
+          isOffline={!navigator.onLine} 
+          hasServerError={error && error.includes('máy chủ')}
+        />
         </Card>
       ) : (
         <Grid container spacing={3}>
@@ -738,7 +738,7 @@ const SupportPage = () => {
             <Typography variant="body2">
               Cần thêm trợ giúp? Liên hệ với đội ngũ chúng tôi qua email: support@facetrack-ai.com
             </Typography>
-          </Box>
+    </Box>
           <Button
             variant="outlined"
             size="small"
