@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Typography, Paper, Alert, CircularProgress, Card, CardContent, Snackbar, Container, Fade, Divider } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import { AccessTime as AccessTimeIcon, Check as CheckIcon, EventAvailable as EventAvailableIcon } from '@mui/icons-material';
+import { AccessTime as AccessTimeIcon, Check as CheckIcon, EventAvailable as EventAvailableIcon, Security as SecurityIcon } from '@mui/icons-material';
 import WebcamCapture from '../components/WebcamCapture';
-import { attendanceApi } from '../services/api';
+import { attendanceApi, employeeApi } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 const CheckInPage = () => {
   const [loading, setLoading] = useState(false);
@@ -11,7 +12,10 @@ const CheckInPage = () => {
   const [result, setResult] = useState(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [currentEmployee, setCurrentEmployee] = useState(null);
+  const [securityMessage, setSecurityMessage] = useState(null);
   const navigate = useNavigate();
+  const { currentUser, getEmployeeId } = useAuth();
   
   // Update current time every second
   useEffect(() => {
@@ -22,24 +26,74 @@ const CheckInPage = () => {
     return () => clearInterval(timer);
   }, []);
 
+  // Get current employee information on page load
+  useEffect(() => {
+    const fetchCurrentEmployee = async () => {
+      try {
+        setLoading(true);
+        const employeeId = getEmployeeId();
+        if (!employeeId) {
+          setError("Không thể xác định nhân viên hiện tại. Vui lòng đăng nhập lại.");
+          return;
+        }
+        
+        const response = await employeeApi.getById(employeeId);
+        setCurrentEmployee(response.data);
+        setSecurityMessage(`Xác thực nhân viên: ${response.data.first_name} ${response.data.last_name}`);
+      } catch (err) {
+        console.error("Error fetching current employee:", err);
+        setError("Không thể tải thông tin nhân viên. Vui lòng thử lại sau.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchCurrentEmployee();
+  }, [getEmployeeId]);
+
   const handleCapture = async (imageFile) => {
     setLoading(true);
     setError(null);
     setResult(null);
 
+    // Ensure we have the current employee's ID
+    const employeeId = getEmployeeId();
+    if (!employeeId || !currentEmployee) {
+      setError("Không thể xác định thông tin nhân viên. Vui lòng đăng nhập lại.");
+      setLoading(false);
+      return;
+    }
+
     try {
-      const response = await attendanceApi.checkInOut(imageFile);
+      // Pass the employee ID to ensure check-in is only for the logged-in employee
+      const response = await attendanceApi.checkInOut(imageFile, employeeId);
+      
+      // Verify the recognized employee matches the current user
+      if (response.data.employee_id && response.data.employee_id !== employeeId) {
+        setError("Khuôn mặt không khớp với tài khoản đang đăng nhập. Vui lòng chỉ chấm công cho chính mình.");
+        setLoading(false);
+        return;
+      }
+      
       setResult(response.data);
       setShowSuccess(true);
       console.log("Kết quả từ API:", response.data); // Log để debug
       
       // Tự động chuyển về trang dashboard sau 3 giây
       setTimeout(() => {
-        navigate('/');
+        navigate('/reports');
       }, 3000);
     } catch (err) {
       console.error('Error during check-in/out:', err);
-      setError(err.response?.data?.error || 'Có lỗi xảy ra khi chấm công. Vui lòng thử lại.');
+      
+      // Handle different error scenarios
+      if (err.response?.data?.error?.includes('face')) {
+        setError('Không nhận diện được khuôn mặt hoặc khuôn mặt không khớp. Vui lòng thử lại.');
+      } else if (err.response?.data?.error?.includes('permission') || err.response?.data?.error?.includes('unauthorized')) {
+        setError('Bạn không có quyền chấm công cho người khác.');
+      } else {
+        setError(err.response?.data?.error || 'Có lỗi xảy ra khi chấm công. Vui lòng thử lại.');
+      }
     } finally {
       setLoading(false);
     }

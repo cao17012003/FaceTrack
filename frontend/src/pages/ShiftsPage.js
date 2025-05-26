@@ -139,15 +139,16 @@ const ShiftsPage = () => {
       
       if (currentShift) {
         // Update
-        await shiftApi.update(currentShift.id, dataToSubmit);
+        await shiftApi.update(currentShift.name, dataToSubmit);
       } else {
         // Create
         const createdShiftResponse = await shiftApi.create(dataToSubmit);
-        // Lưu lại id và name của ca làm việc mới tạo vào localStorage
+        // Lưu lại thông tin ca làm việc mới tạo vào localStorage
         if (createdShiftResponse && createdShiftResponse.data) {
-          const { id, name } = createdShiftResponse.data;
-          localStorage.setItem('shiftInfo', JSON.stringify({ id, name }));
-          console.log('Đã lưu shift:', { id, name });
+          // Shift sử dụng name làm primary key, không có trường id
+          const { name } = createdShiftResponse.data;
+          localStorage.setItem('shiftInfo', JSON.stringify({ name }));
+          console.log('Đã lưu shift:', { name });
         }
       }
       
@@ -167,7 +168,7 @@ const ShiftsPage = () => {
     if (window.confirm('Bạn có chắc chắn muốn xóa ca làm việc này?')) {
       setLoading(true);
       try {
-        await shiftApi.delete(id);
+        await shiftApi.delete(id); // id ở đây thực ra là name của ca làm việc
         
         // Refresh shift list
         const userId = localStorage.getItem('userId');
@@ -225,7 +226,7 @@ const ShiftsPage = () => {
             <TableBody>
               {shifts.length > 0 ? (
                 shifts.map((shift) => (
-                  <TableRow key={shift.id}>
+                  <TableRow key={shift.name}>
                     <TableCell>{shift.name}</TableCell>
                     <TableCell>{shift.start_time}</TableCell>
                     <TableCell>{shift.end_time}</TableCell>
@@ -239,7 +240,7 @@ const ShiftsPage = () => {
                       </IconButton>
                       <IconButton
                         color="secondary"
-                        onClick={() => handleDelete(shift.id)}
+                        onClick={() => handleDelete(shift.name)}
                       >
                         <DeleteIcon />
                       </IconButton>

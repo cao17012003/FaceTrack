@@ -2,7 +2,7 @@
 export const translations = {
   // Menu and navigation
   menu: {
-    home: "Home",
+    home: "",
     checkin: "Check In",
     employees: "Employees",
     departments: "Departments",

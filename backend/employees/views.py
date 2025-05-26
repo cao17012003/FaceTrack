@@ -100,14 +100,108 @@ class DepartmentViewSet(viewsets.ModelViewSet):
     queryset = Department.objects.all()
     serializer_class = DepartmentSerializer
     permission_classes = [AllowAny]  # Cho phép truy cập không cần xác thực
+    
+    @action(detail=False, methods=['get'])
+    def stats_counts(self, request):
+        """API endpoint đặc biệt cho trang Home, trả về số lượng thực tế"""
+        from django.db import connection
+        
+        # Sử dụng SQL trực tiếp để lấy số lượng từ database
+        with connection.cursor() as cursor:
+            # Đếm phòng ban
+            cursor.execute("SELECT COUNT(*) FROM employees_department")
+            dept_count = cursor.fetchone()[0]
+            
+            # Đếm nhân viên 
+            cursor.execute("SELECT COUNT(*) FROM employees_employee")
+            emp_count = cursor.fetchone()[0]
+            
+            # Đếm ca làm việc
+            cursor.execute("SELECT COUNT(*) FROM employees_shift")
+            shift_count = cursor.fetchone()[0]
+            
+            # Đếm chấm công hôm nay
+            today = timezone.now().date().isoformat()
+            cursor.execute(f"SELECT COUNT(*) FROM attendance_attendance WHERE DATE(check_in_time) = '{today}'")
+            attendance_count = cursor.fetchone()[0]
+        
+        return Response({
+            'departments': dept_count,
+            'employees': emp_count,
+            'shifts': shift_count,
+            'todayAttendance': attendance_count,
+            'isRealData': True  # Đánh dấu đây là dữ liệu thực, không phải mẫu
+        })
+    
+    # Ghi đè phương thức list để luôn lấy dữ liệu trực tiếp từ database
+    def list(self, request, *args, **kwargs):
+        # Đặc biệt: kiểm tra xem có flag debug=true không
+        if request.query_params.get('debug') == 'true':
+            # Trả về danh sách trống nếu database trống
+            from django.db import connection
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT COUNT(*) FROM employees_department")
+                count = cursor.fetchone()[0]
+            
+            if count == 0:
+                return Response([])  # Trả về danh sách trống
+        
+        # Nếu không có flag debug, sử dụng logic mặc định
+        return super().list(request, *args, **kwargs)
+    
+    @action(detail=False, methods=['get'])
+    def debug_count(self, request):
+        """API endpoint để kiểm tra số lượng phòng ban trong database"""
+        count = Department.objects.count()
+        all_depts = list(Department.objects.all().values('name', 'description'))
+        return Response({
+            'count': count,
+            'departments': all_depts,
+            'note': 'Lấy trực tiếp từ database, bỏ qua cache'
+        })
+    
+    # Ghi đè phương thức destroy để xử lý tham số 'undefined'
+    def destroy(self, request, *args, **kwargs):
+        pk = kwargs.get('pk')
+        # Xử lý trường hợp 'undefined'
+        if pk == 'undefined':
+            return Response(
+                {'message': 'Không thể xóa phòng ban với ID không xác định. Vui lòng chọn phòng ban cụ thể.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        return super().destroy(request, *args, **kwargs)
+        
+    @action(detail=False, methods=['delete'])
+    def delete_by_name(self, request):
+        """Xóa phòng ban bằng tên thay vì id"""
+        name = request.data.get('name')
+        if not name:
+            return Response(
+                {'error': 'Thiếu tên phòng ban'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            department = Department.objects.get(name=name)
+            department.delete()
+            return Response(
+                {'success': True, 'message': f'Đã xóa phòng ban: {name}'},
+                status=status.HTTP_200_OK
+            )
+        except Department.DoesNotExist:
+            return Response(
+                {'error': f'Không tìm thấy phòng ban: {name}'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
     def get_queryset(self):
-        """Lấy danh sách phòng ban dựa trên user ID"""
+        """Lấy danh sách phòng ban dựa trên user ID, luôn truy vấn trực tiếp từ database"""
+        # Đảm bảo luôn lấy dữ liệu mới nhất từ database, bỏ qua cache
         user_id = self.request.query_params.get('username')
         if user_id:
             try:
                 user = User.objects.get(id=user_id)
-                return Department.objects.filter(username=user)
+                return Department.objects.filter(username=user).all()
             except User.DoesNotExist:
                 return Department.objects.none()
         return Department.objects.all()
@@ -158,6 +252,47 @@ class ShiftViewSet(viewsets.ModelViewSet):
     queryset = Shift.objects.all()
     serializer_class = ShiftSerializer
     permission_classes = [AllowAny]  # Cho phép truy cập không cần xác thực
+    
+    def get_queryset(self):
+        """Lấy danh sách ca làm việc dựa trên user ID"""
+        user_id = self.request.query_params.get('username')
+        if user_id:
+            return Shift.objects.all()
+        return Shift.objects.all()
+    
+    # Ghi đè phương thức destroy để xử lý tham số 'undefined'
+    def destroy(self, request, *args, **kwargs):
+        pk = kwargs.get('pk')
+        # Xử lý trường hợp 'undefined'
+        if pk == 'undefined':
+            return Response(
+                {'message': 'Không thể xóa ca làm việc với ID không xác định. Vui lòng chọn ca làm việc cụ thể.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        return super().destroy(request, *args, **kwargs)
+    
+    @action(detail=False, methods=['delete'])
+    def delete_by_name(self, request):
+        """Xóa ca làm việc bằng tên thay vì id"""
+        name = request.data.get('name')
+        if not name:
+            return Response(
+                {'error': 'Thiếu tên ca làm việc'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            shift = Shift.objects.get(name=name)
+            shift.delete()
+            return Response(
+                {'success': True, 'message': f'Đã xóa ca làm việc: {name}'},
+                status=status.HTTP_200_OK
+            )
+        except Shift.DoesNotExist:
+            return Response(
+                {'error': f'Không tìm thấy ca làm việc: {name}'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
 class FaceDataViewSet(viewsets.ModelViewSet):
     queryset = FaceData.objects.all()
@@ -278,7 +413,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
     
     def destroy(self, request, *args, **kwargs):
-        """Xóa nhân viên"""
+        """Xóa nhân viên và tài khoản người dùng tương ứng"""
         try:
             user_profile = UserProfile.objects.get(user_id=request.user.id)  # Truy vấn theo user_id
             instance = self.get_object()
@@ -288,8 +423,23 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 return Response({
                     'error': 'Bạn không có quyền xóa nhân viên này'
                 }, status=status.HTTP_403_FORBIDDEN)
-                
+            
+            # Lưu thông tin về user liên kết (nếu có)
+            associated_user = None
+            if instance.username:
+                associated_user = instance.username
+            
+            # Xóa nhân viên
             self.perform_destroy(instance)
+            
+            # Xóa tài khoản user tương ứng nếu có
+            if associated_user:
+                try:
+                    associated_user.delete()
+                except Exception as e:
+                    # Ghi log lỗi nhưng không dừng quá trình xóa nhân viên
+                    logging.error(f"Lỗi khi xóa user liên kết: {str(e)}")
+            
             return Response(status=status.HTTP_204_NO_CONTENT)
         except UserProfile.DoesNotExist:
             return Response({

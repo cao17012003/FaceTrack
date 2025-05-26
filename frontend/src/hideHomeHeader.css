@@ -1,0 +1,12 @@
+/* Hide the Home heading/title that appears in the UI */
+.MuiBox-root h1:contains("Home"),
+.MuiBox-root h2:contains("Home"),
+.MuiBox-root h3:contains("Home"),
+.MuiBox-root h4:contains("Home"),
+.MuiBox-root h5:contains("Home"),
+.MuiBox-root h6:contains("Home"),
+.MuiBox-root p:contains("Home"),
+.MuiBox-root span:contains("Home"),
+.MuiToolbar-root .MuiTypography-root:contains("Home") {
+  display: none !important;
+}

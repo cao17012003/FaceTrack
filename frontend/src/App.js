@@ -30,6 +30,12 @@ const ProtectedRoute = ({ children }) => {
   if (!isAuthenticated) {
     return <Navigate to="/login" />;
   }
+  
+  // Support function-as-children pattern
+  if (typeof children === 'function') {
+    return children({ isAuthenticated });
+  }
+  
   return children;
 };
 
@@ -38,7 +44,16 @@ const AdminRoute = ({ children }) => {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const isAdmin = user.role === 'admin';
   if (!isAdmin) {
-    return <Navigate to="/" />;
+    return <Navigate to="/reports" />;
+  }
+  return children;
+};
+
+// Route đặc biệt cho trang Home - chỉ admin mới có thể truy cập
+const HomeRoute = ({ children }) => {
+  const { isAdmin } = useAuth();
+  if (!isAdmin()) {
+    return <Navigate to="/reports" />;
   }
   return children;
 };
@@ -114,9 +129,11 @@ function App() {
                   path="/" 
                   element={
                     <ProtectedRoute>
-                      <Layout>
-                        <HomePage />
-                      </Layout>
+                      <HomeRoute>
+                        <Layout>
+                          <HomePage />
+                        </Layout>
+                      </HomeRoute>
                     </ProtectedRoute>
                   } 
                 />
@@ -193,10 +210,17 @@ function App() {
                 <Route 
                   path="/check-in" 
                   element={
-                    <ProtectedRoute roles={['user']}>
-                      <Layout>
-                        <CheckInPage />
-                      </Layout>
+                    <ProtectedRoute>
+                      {({ children }) => {
+                        const { isAdmin } = useAuth();
+                        return !isAdmin() ? (
+                          <Layout>
+                            <CheckInPage />
+                          </Layout>
+                        ) : (
+                          <Navigate to="/reports" />
+                        );
+                      }}
                     </ProtectedRoute>
                   } 
                 />

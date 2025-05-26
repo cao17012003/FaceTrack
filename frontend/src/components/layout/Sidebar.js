@@ -11,7 +11,7 @@ import {
 } from '@mui/icons-material';
 
 const items = [
-  { title: 'Trang chủ', icon: HomeIcon, path: '/', requiredRole: ['admin', 'user'] },
+  { title: 'Trang chủ', icon: HomeIcon, path: '/', requiredRole: ['admin'] },
   { title: 'Điểm danh', icon: CameraIcon, path: '/check-in', requiredRole: ['user'] },
   { title: 'Thông báo', icon: NotificationsIcon, path: '/notifications', requiredRole: ['admin', 'user'] },
   { title: 'Hỗ trợ & Khiếu nại', icon: SupportIcon, path: '/support', requiredRole: ['admin', 'user'] },

@@ -124,7 +124,8 @@ export const departmentApi = {
   getById: (id) => api.get(`/departments/${id}/`),
   create: (data) => api.post('/departments/', data),
   update: (id, data) => api.put(`/departments/${id}/`, data),
-  delete: (id) => api.delete(`/departments/${id}/`),
+  // Sử dụng endpoint delete_by_name thay vì xóa theo id để tránh lỗi 'undefined'
+  delete: (nameOrId) => api.delete('/departments/delete_by_name/', { data: { name: nameOrId } }),
 };
 
 // API cho ca làm việc
@@ -133,7 +134,8 @@ export const shiftApi = {
   getById: (id) => api.get(`/shifts/${id}/`),
   create: (data) => api.post('/shifts/', data),
   update: (id, data) => api.put(`/shifts/${id}/`, data),
-  delete: (id) => api.delete(`/shifts/${id}/`),
+  // Sử dụng endpoint delete_by_name thay vì xóa theo id để tránh lỗi 'undefined'
+  delete: (nameOrId) => api.delete('/shifts/delete_by_name/', { data: { name: nameOrId } }),
 };
 
 // API cho chấm công
@@ -143,9 +145,15 @@ export const attendanceApi = {
   create: (data) => api.post('/attendance/', data),
   update: (id, data) => api.put(`/attendance/${id}/`, data),
   delete: (id) => api.delete(`/attendance/${id}/`),
-  checkInOut: (imageFile) => {
+  checkInOut: (imageFile, employeeId) => {
     const formData = new FormData();
     formData.append('image', imageFile);
+    
+    // Include employee ID to verify the check-in request is for the logged-in user
+    if (employeeId) {
+      formData.append('employee_id', employeeId);
+    }
+    
     return api.post('/attendance/check_in_out/', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',

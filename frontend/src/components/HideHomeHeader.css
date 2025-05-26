@@ -1,0 +1,8 @@
+/* Hide the "Home" header in the page */
+h4:contains("Home"), 
+div:contains("Home") > h4,
+.MuiTypography-root:contains("Home"),
+header h4:contains("Home"),
+[role="heading"]:contains("Home") {
+  display: none !important;
+}

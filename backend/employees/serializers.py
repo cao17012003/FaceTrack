@@ -3,15 +3,20 @@ from .models import Employee, Department, Shift, FaceData, UserProfile, User
 
 class DepartmentSerializer(serializers.ModelSerializer):
     username = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), required=False)
+    # Thêm trường id sử dụng giá trị name (vì frontend cần id field)
+    id = serializers.CharField(source='name', read_only=True)
     
     class Meta:
         model = Department
         fields = '__all__'
 
 class ShiftSerializer(serializers.ModelSerializer):
+    # Thêm trường id sử dụng giá trị name (vì frontend cần id field)
+    id = serializers.CharField(source='name', read_only=True)
+    
     class Meta:
         model = Shift
-        fields = '__all__'
+        fields = ['id', 'name', 'start_time', 'end_time', 'description', 'username']
 
 class FaceDataSerializer(serializers.ModelSerializer):
     class Meta:
@@ -45,14 +50,13 @@ class EmployeeSerializer(serializers.ModelSerializer):
 class EmployeeDetailSerializer(serializers.ModelSerializer):
     department = DepartmentSerializer(read_only=True)
     shift = ShiftSerializer(read_only=True)
-    face_data = FaceDataSerializer(many=True, read_only=True)
+    face_data = FaceDataSerializer(read_only=True)
     
     class Meta:
         model = Employee
         fields = [
-            'id',
+            'employee_id',      # Use employee_id instead of id as it's the primary key
             'username',         # Thêm trường username vào serializer chi tiết
-            'employee_id',
             'first_name',
             'last_name', 
             'department',

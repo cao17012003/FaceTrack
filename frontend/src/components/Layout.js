@@ -151,10 +151,21 @@ function Layout({ children }) {
 
   // Define menu items based on user role
   const getMenuItems = () => {
-    // Common menu items for all logged-in users
-    const commonMenuItems = [
-      { text: t('menu.home'), path: '/', icon: <DashboardIcon />, allowedRoles: ['admin', 'employee'] },
-      { text: t('menu.checkin'), path: '/check-in', icon: <CameraIcon />, allowedRoles: ['admin', 'employee'] },
+    // Menu items based on user role
+    const userMenuItems = [];
+    
+    // Add Home menu item only for admins
+    if (isAdmin()) {
+      userMenuItems.push({ text: t('Home'), path: '/', icon: <DashboardIcon />, allowedRoles: ['admin'] });
+    }
+    
+    // Add Check-in menu item only for employees
+    if (!isAdmin()) {
+      userMenuItems.push({ text: t('menu.checkin'), path: '/check-in', icon: <CameraIcon />, allowedRoles: ['employee'] });
+    }
+    
+    // Common menu items for all users
+    userMenuItems.push(
       { text: t('menu.reports'), path: '/reports', icon: <AccessTimeIcon />, allowedRoles: ['admin', 'employee'] },
       { 
         text: t('menu.notifications'), 
@@ -162,8 +173,10 @@ function Layout({ children }) {
         icon: <Badge color="error" badgeContent={notificationCount} max={99}><NotificationsIcon /></Badge>, 
         allowedRoles: ['admin', 'employee'] 
       },
-      { text: t('menu.support'), path: '/support', icon: <SupportIcon />, allowedRoles: ['admin', 'employee'] },
-    ];
+      { text: t('menu.support'), path: '/support', icon: <SupportIcon />, allowedRoles: ['admin', 'employee'] }
+    );
+    
+    let commonMenuItems = userMenuItems;
     
     // Menu items only for admin
     const adminMenuItems = [
