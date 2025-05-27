@@ -1,4 +1,4 @@
-FROM node:16-alpine
+FROM node:16-alpine AS build
 
 WORKDIR /app
 
@@ -11,11 +11,23 @@ RUN npm ci
 # Copy the rest of the application
 COPY . .
 
+# Set build-time arguments
+ARG REACT_APP_API_URL
+ENV REACT_APP_API_URL=${REACT_APP_API_URL}
+
 # Build the application for production
+RUN echo "Building with REACT_APP_API_URL=$REACT_APP_API_URL"
 RUN npm run build
 
-# Install serve to run the application
+# Production stage
+FROM node:16-alpine
+WORKDIR /app
+
+# Install serve
 RUN npm install -g serve
+
+# Copy built app from build stage
+COPY --from=build /app/build ./build
 
 # Expose port 3000
 EXPOSE 3000

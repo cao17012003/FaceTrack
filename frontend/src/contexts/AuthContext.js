@@ -28,9 +28,11 @@ export function AuthProvider({ children }) {
 
   const login = async (username, password, role) => {
     try {
-      console.log(`Đang đăng nhập với username: ${username} và role: ${role} tại ${API_BASE_URL}/api/login/`);
+      // Use relative URL since we have proxy configured
+      const loginUrl = '/api/login/';
+      console.log(`Đang đăng nhập với username: ${username} và role: ${role} tại ${loginUrl}`);
       
-      const response = await axios.post(`${API_BASE_URL}/api/login/`, {
+      const response = await axios.post(loginUrl, {
         username,
         password,
         role

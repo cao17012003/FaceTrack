@@ -38,15 +38,18 @@ const DepartmentsPage = () => {
     description: '',
   });
 
-  // Fetch dữ liệu phòng ban và lọc theo userId
+  // Fetch tất cả dữ liệu phòng ban, không lọc theo userId
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
+        // Lấy userId để ghi log, nhưng không dùng để lọc
         const userId = localStorage.getItem('userId');
-        console.log('Fetching departments for user:', userId);
-        const response = await departmentApi.getAll({ username: userId });
-        console.log('Departments response:', response.data);
+        console.log('Fetching all departments (logged in user:', userId, ')');
+        // Không gửi tham số username để lấy tất cả phòng ban
+        const response = await departmentApi.getAll();
+        console.log('All departments response:', response.data);
+        // Hiển thị tất cả phòng ban, không lọc
         setDepartments(response.data);
       } catch (err) {
         console.error('Error fetching departments:', err);
@@ -123,14 +126,12 @@ const DepartmentsPage = () => {
         }
       }
       
-      // Làm mới danh sách và lọc theo userId
+      // Làm mới danh sách và hiển thị tất cả phòng ban
       const response = await departmentApi.getAll();
       console.log('All departments:', response.data);
-      const filteredDepartments = response.data.filter(
-        department => department.username === parseInt(userId)
-      );
-      console.log('Filtered departments:', filteredDepartments);
-      setDepartments(filteredDepartments);
+      // Không lọc theo userId nữa, hiển thị tất cả phòng ban
+      console.log('Setting all departments without filtering');
+      setDepartments(response.data);
       handleCloseDialog();
     } catch (err) {
       console.error('Error saving department:', err);
@@ -146,17 +147,11 @@ const DepartmentsPage = () => {
       setLoading(true);
       try {
         await departmentApi.delete(name);
-        // Làm mới danh sách và lọc theo userId
+        // Làm mới danh sách và hiển thị tất cả phòng ban
         const response = await departmentApi.getAll();
-        const userId = localStorage.getItem('userId');
-        if (!userId) {
-          setError('Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.');
-          return;
-        }
-        const filteredDepartments = response.data.filter(
-          department => department.username === parseInt(userId)
-        );
-        setDepartments(filteredDepartments);
+        console.log('After delete - all departments:', response.data);
+        // Không lọc theo userId nữa, hiển thị tất cả phòng ban
+        setDepartments(response.data);
       } catch (err) {
         console.error('Error deleting department:', err);
         setError('Có lỗi xảy ra khi xóa phòng ban.');

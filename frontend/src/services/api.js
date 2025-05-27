@@ -1,7 +1,8 @@
 import axios from 'axios';
-import { AUTH_TOKEN_KEY } from '../config';
+import { AUTH_TOKEN_KEY, API_BASE_URL } from '../config';
 
-const API_URL = 'http://localhost:8000/api';
+// Sử dụng đường dẫn tương đối cho API URL
+const API_URL = process.env.REACT_APP_API_URL || '/api';
 
 const api = axios.create({
   baseURL: API_URL,

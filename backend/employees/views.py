@@ -201,9 +201,15 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         if user_id:
             try:
                 user = User.objects.get(id=user_id)
+                # Nếu là admin, trả về tất cả phòng ban
+                if user.is_superuser or user.is_staff:
+                    return Department.objects.all()
+                # Nếu không phải admin, chỉ trả về phòng ban liên kết với user
                 return Department.objects.filter(username=user).all()
             except User.DoesNotExist:
-                return Department.objects.none()
+                # Nếu không tìm thấy user, hiển thị tất cả phòng ban mặc định
+                return Department.objects.all()
+        # Nếu không có tham số username, trả về tất cả
         return Department.objects.all()
 
     def create(self, request, *args, **kwargs):

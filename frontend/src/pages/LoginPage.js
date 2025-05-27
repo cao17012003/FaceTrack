@@ -444,7 +444,7 @@ const LoginPage = () => {
                     fontSize: '0.875rem',
                   }}
                 >
-                  Chưa có tài khoản? Đăng ký
+                
                 </Link>
               </Box>
             </Box>
