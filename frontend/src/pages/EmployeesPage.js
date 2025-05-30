@@ -671,11 +671,11 @@ const EmployeesPage = () => {
                   </Box>
                   <Typography variant="body1"><strong>Tên đăng nhập:</strong> {employee.username}</Typography>
                   <Typography variant="body1"><strong>Mã nhân viên:</strong> {employee.employee_id}</Typography>
-                  <Typography variant="body1"><strong>Phòng ban:</strong> {employee.department?.name || 'Chưa phân phòng'}</Typography>
-                  <Typography variant="body1"><strong>Ca làm việc:</strong> {employee.shift?.name || 'Chưa phân ca'}</Typography>
+                  <Typography variant="body1"><strong>Phòng ban:</strong> {employee.department?.name || employee.department || 'Chưa phân phòng'}</Typography>
+                  <Typography variant="body1"><strong>Ca làm việc:</strong> {employee.shift?.name || employee.shift || 'Chưa phân ca'}</Typography>
                   <Typography variant="body1"><strong>Email:</strong> {employee.email || 'Chưa cập nhật'}</Typography>
                   <Typography variant="body1"><strong>Điện thoại:</strong> {employee.phone || 'Chưa cập nhật'}</Typography>
-                  <Typography variant="body1"><strong>Ngày tạo:</strong> {new Date(employee.created_at).toLocaleDateString('vi-VN')}</Typography>
+                  <Typography variant="body1"><strong>Ngày tạo:</strong> {employee.created_at ? new Date(employee.created_at).toLocaleDateString('vi-VN') : ''}</Typography>
                 </>
               )}
             </Box>
@@ -713,14 +713,24 @@ const EmployeesPage = () => {
                     return (
                       <ImageListItem key={face.id || index} sx={{ position: 'relative' }}>
                         <img
-                          src={face.image || (face.face_image && `data:image/jpeg;base64,${face.face_image}`)}
+                          src={getFaceImageUrl(face)}
                           alt={`Khuôn mặt của ${employee.first_name}`}
                           loading="lazy"
-                          style={{ borderRadius: 8, cursor: 'pointer', width: '100%', height: '120px', objectFit: 'cover' }}
+                          style={{
+                            borderRadius: 8,
+                            cursor: 'pointer',
+                            width: '100%',
+                            height: '180px',
+                            objectFit: 'cover',
+                            border: face.imageError ? '2px solid red' : '1px solid #ccc',
+                            background: '#f5f5f5',
+                            display: 'block',
+                          }}
                           onClick={() => handleImageClick(face)}
-                          onError={(e) => {
-                            console.error('Lỗi khi tải ảnh khuôn mặt:', face);
-                            e.target.src = 'https://via.placeholder.com/100?text=No+Image';
+                          onError={e => {
+                            e.target.onerror = null;
+                            e.target.src = 'https://upload.wikimedia.org/wikipedia/commons/6/65/No-Image-Placeholder.svg';
+                            e.target.style.border = '2px solid red';
                           }}
                         />
                         <Box 
@@ -916,6 +926,18 @@ const EmployeesPage = () => {
   const handleViewEmployee = (employee) => {
     setCurrentEmployee(employee);
     setOpenDialog(true);
+  };
+
+  // Hàm lấy URL ảnh khuôn mặt đúng cho frontend
+  const getFaceImageUrl = (face) => {
+    if (face.image) {
+      // Thay thế mọi domain nội bộ bằng localhost
+      return face.image.replace('http://backend:8000', 'http://localhost:8000').replace('http://nginx:8000', 'http://localhost:8000');
+    }
+    if (face.face_image) {
+      return `data:image/jpeg;base64,${face.face_image}`;
+    }
+    return '';
   };
 
   return (

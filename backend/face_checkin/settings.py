@@ -108,6 +108,9 @@ AUTH_PASSWORD_VALIDATORS = [
     },
     {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'OPTIONS': {
+            'min_length': 8,
+        }
     },
     {
         'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
@@ -115,7 +118,24 @@ AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
+    {
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'OPTIONS': {
+            'min_length': 8,
+        }
+    },
 ]
+
+# Custom password validation
+PASSWORD_VALIDATION = {
+    'MIN_LENGTH': 8,
+    'REQUIRE_UPPERCASE': True,
+    'REQUIRE_LOWERCASE': True,
+    'REQUIRE_NUMBERS': True,
+    'REQUIRE_SPECIAL_CHARS': True,
+    'NO_SPACES': True,
+    'SAMPLE_PASSWORD': 'P@ssw0rd2025'  # Mật khẩu mẫu
+}
 
 
 # Internationalization
@@ -174,7 +194,6 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.TokenAuthentication',
-        'rest_framework.authentication.SessionAuthentication',
         'rest_framework.authentication.BasicAuthentication',
     ],
     'UNAUTHENTICATED_USER': None,

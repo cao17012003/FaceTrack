@@ -4,53 +4,54 @@ import { AUTH_TOKEN_KEY, API_BASE_URL } from '../config';
 // Sử dụng đường dẫn tương đối cho API URL
 const API_URL = process.env.REACT_APP_API_URL || '/api';
 
-const api = axios.create({
-  baseURL: API_URL,
+const axiosInstance = axios.create({
+  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000',
+  timeout: 30000, // Tăng timeout lên 30 giây
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 10000, // Timeout after 10 seconds
 });
 
-// Interceptor để xử lý lỗi
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response) {
-      console.error('API Error Response:', {
-        status: error.response.status,
-        statusText: error.response.statusText,
-        url: error.config.url,
-        method: error.config.method,
-        data: error.response.data
-      });
-    } else if (error.request) {
-      console.error('API Error Request:', {
-        request: error.request,
-        url: error.config?.url,
-        method: error.config?.method
-      });
-    } else {
-      console.error('API Error:', error.message);
+// Add request interceptor
+axiosInstance.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    if (token) {
+      config.headers.Authorization = `Token ${token}`;
     }
+    return config;
+  },
+  (error) => {
+    console.error('API Error Request:', error);
     return Promise.reject(error);
   }
 );
 
-// Thêm interceptor cho token
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem(AUTH_TOKEN_KEY);
-  if (token) {
-    config.headers.Authorization = `Token ${token}`;
+// Add response interceptor
+axiosInstance.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.code === 'ECONNABORTED') {
+      console.error('Request timeout:', error);
+      return Promise.reject(new Error('Request timeout - Vui lòng thử lại sau'));
+    }
+    
+    if (error.response) {
+      // The request was made and the server responded with a status code
+      // that falls out of the range of 2xx
+      console.error('API Error Response:', error.response);
+      return Promise.reject(error);
+    } else if (error.request) {
+      // The request was made but no response was received
+      console.error('API Error Request:', error.request);
+      return Promise.reject(new Error('Không thể kết nối đến server - Vui lòng kiểm tra kết nối mạng'));
+    } else {
+      // Something happened in setting up the request that triggered an Error
+      console.error('API Error:', error.message);
+      return Promise.reject(error);
+    }
   }
-
-  // Log request để debug
-  if (process.env.NODE_ENV !== 'production') {
-    console.log(`API Request: ${config.method.toUpperCase()} ${config.url}`);
-  }
-
-  return config;
-});
+);
 
 // Hàm retry khi gặp lỗi 500
 const apiWithRetry = async (apiCall, maxRetries = 2) => {
@@ -84,23 +85,23 @@ const apiWithRetry = async (apiCall, maxRetries = 2) => {
 
 // API cho xác thực
 export const authApi = {
-  login: (data) => api.post('/login/', data),
-  register: (data) => api.post('/register/', data),
+  login: (data) => axiosInstance.post('/login/', data),
+  register: (data) => axiosInstance.post('/register/', data),
 };
 
 // API cho nhân viên
 export const employeeApi = {
-  getAll: () => api.get('/employees/'),
-  getById: (id) => api.get(`/employees/${id}/`),
-  create: (data) => api.post('/employees/', data),
-  update: (id, data) => api.put(`/employees/${id}/`, data),
-  delete: (id) => api.delete(`/employees/${id}/`),
-  getFaceData: (id) => api.get(`/employees/${id}/face_data/`),
-  deleteFaceData: (faceId) => api.delete(`/face_data/${faceId}/`),
+  getAll: () => axiosInstance.get('/employees/'),
+  getById: (id) => axiosInstance.get(`/employees/${id}/`),
+  create: (data) => axiosInstance.post('/employees/', data),
+  update: (id, data) => axiosInstance.put(`/employees/${id}/`, data),
+  delete: (id) => axiosInstance.delete(`/employees/${id}/`),
+  getFaceData: (id) => axiosInstance.get(`/employees/${id}/face_data/`),
+  deleteFaceData: (faceId) => axiosInstance.delete(`/face_data/${faceId}/`),
   registerFace: (id, imageFile) => {
     const formData = new FormData();
     formData.append('image', imageFile);
-    return api.post(`/employees/${id}/register_face/`, formData, {
+    return axiosInstance.post(`/employees/${id}/register_face/`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -109,43 +110,43 @@ export const employeeApi = {
   recognizeFace: (imageFile) => {
     const formData = new FormData();
     formData.append('image', imageFile);
-    return api.post('/employees/recognize_face/', formData, {
+    return axiosInstance.post('/employees/recognize_face/', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
     });
   },
   // API lấy thông tin nhân viên hiện tại đang đăng nhập
-  getCurrentEmployee: () => api.get('/employees/current/'),
+  getCurrentEmployee: () => axiosInstance.get('/employees/current/'),
 };
 
 // API cho phòng ban
 export const departmentApi = {
-  getAll: (params) => api.get('/departments/', { params }),
-  getById: (id) => api.get(`/departments/${id}/`),
-  create: (data) => api.post('/departments/', data),
-  update: (id, data) => api.put(`/departments/${id}/`, data),
+  getAll: (params) => axiosInstance.get('/departments/', { params }),
+  getById: (id) => axiosInstance.get(`/departments/${id}/`),
+  create: (data) => axiosInstance.post('/departments/', data),
+  update: (id, data) => axiosInstance.put(`/departments/${id}/`, data),
   // Sử dụng endpoint delete_by_name thay vì xóa theo id để tránh lỗi 'undefined'
-  delete: (nameOrId) => api.delete('/departments/delete_by_name/', { data: { name: nameOrId } }),
+  delete: (nameOrId) => axiosInstance.delete('/departments/delete_by_name/', { data: { name: nameOrId } }),
 };
 
 // API cho ca làm việc
 export const shiftApi = {
-  getAll: (params) => api.get('/shifts/', { params }),
-  getById: (id) => api.get(`/shifts/${id}/`),
-  create: (data) => api.post('/shifts/', data),
-  update: (id, data) => api.put(`/shifts/${id}/`, data),
+  getAll: (params) => axiosInstance.get('/shifts/', { params }),
+  getById: (id) => axiosInstance.get(`/shifts/${id}/`),
+  create: (data) => axiosInstance.post('/shifts/', data),
+  update: (id, data) => axiosInstance.put(`/shifts/${id}/`, data),
   // Sử dụng endpoint delete_by_name thay vì xóa theo id để tránh lỗi 'undefined'
-  delete: (nameOrId) => api.delete('/shifts/delete_by_name/', { data: { name: nameOrId } }),
+  delete: (nameOrId) => axiosInstance.delete('/shifts/delete_by_name/', { data: { name: nameOrId } }),
 };
 
 // API cho chấm công
 export const attendanceApi = {
-  getAll: (params) => api.get('/attendance/', { params }),
-  getById: (id) => api.get(`/attendance/${id}/`),
-  create: (data) => api.post('/attendance/', data),
-  update: (id, data) => api.put(`/attendance/${id}/`, data),
-  delete: (id) => api.delete(`/attendance/${id}/`),
+  getAll: (params) => axiosInstance.get('/attendance/', { params }),
+  getById: (id) => axiosInstance.get(`/attendance/${id}/`),
+  create: (data) => axiosInstance.post('/attendance/', data),
+  update: (id, data) => axiosInstance.put(`/attendance/${id}/`, data),
+  delete: (id) => axiosInstance.delete(`/attendance/${id}/`),
   checkInOut: (imageFile, employeeId) => {
     const formData = new FormData();
     formData.append('image', imageFile);
@@ -155,51 +156,51 @@ export const attendanceApi = {
       formData.append('employee_id', employeeId);
     }
     
-    return api.post('/attendance/check_in_out/', formData, {
+    return axiosInstance.post('/attendance/check_in_out/', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
     });
   },
-  getReport: (params) => api.get('/attendance/report/', { params }),
-  getToday: () => api.get('/attendance/today/'),
-  getStats: () => api.get('/attendance/stats/'),
-  getWeeklyStats: () => api.get('/attendance/weekly_stats/'),
+  getReport: (params) => axiosInstance.get('/attendance/report/', { params }),
+  getToday: () => axiosInstance.get('/attendance/today/'),
+  getStats: () => axiosInstance.get('/attendance/stats/'),
+  getWeeklyStats: () => axiosInstance.get('/attendance/weekly_stats/'),
   // Lấy dữ liệu điểm danh dạng lịch
   getCalendarReport: (startDate, endDate, employeeId) => {
     const params = { start_date: startDate, end_date: endDate };
     if (employeeId) params.employee_id = employeeId;
-    return api.get('/attendance/calendar_report/', { params });
+    return axiosInstance.get('/attendance/calendar_report/', { params });
   },
   // Lấy lịch sử điểm danh gần đây của nhân viên
-  getRecentAttendance: (limit = 10) => api.get('/attendance/recent/', { params: { limit } }),
+  getRecentAttendance: (limit = 10) => axiosInstance.get('/attendance/recent/', { params: { limit } }),
   // Lấy thông tin điểm danh hôm nay của nhân viên
-  getTodayAttendance: () => api.get('/attendance/employee_today/'),
+  getTodayAttendance: () => axiosInstance.get('/attendance/employee_today/'),
 };
 
 // API cho dashboard
 export const dashboardApi = {
-  getStats: () => api.get('/dashboard/stats/'),
-  getAttendanceSummary: () => api.get('/dashboard/attendance_summary/'),
-  getDepartmentSummary: () => api.get('/dashboard/department_summary/'),
+  getStats: () => axiosInstance.get('/dashboard/stats/'),
+  getAttendanceSummary: () => axiosInstance.get('/dashboard/attendance_summary/'),
+  getDepartmentSummary: () => axiosInstance.get('/dashboard/department_summary/'),
   // Dashboard cá nhân hóa cho nhân viên
-  getEmployeeStats: () => api.get('/dashboard/employee_stats/'),
+  getEmployeeStats: () => axiosInstance.get('/dashboard/employee_stats/'),
   // Lấy dữ liệu điểm danh tùy chỉnh theo khoảng thời gian
-  getCustomStats: (startDate, endDate) => api.get('/dashboard/custom_stats/', {
+  getCustomStats: (startDate, endDate) => axiosInstance.get('/dashboard/custom_stats/', {
     params: { start_date: startDate, end_date: endDate }
   }),
 };
 
 // API cho thông báo
 export const notificationApi = {
-  getAll: (params) => api.get('/notifications/', { params }),
-  getById: (id) => api.get(`/notifications/${id}/`),
-  create: (data) => api.post('/notifications/', data),
-  update: (id, data) => api.put(`/notifications/${id}/`, data),
-  delete: (id) => api.delete(`/notifications/${id}/`),
-  markAsRead: (id) => api.post(`/notifications/${id}/mark_as_read/`),
-  markAllAsRead: (employeeId) => api.post('/notifications/mark_all_as_read/', { employee_id: employeeId }),
-  getUnreadCount: (employeeId) => api.get('/notifications/unread_count/', { params: { employee_id: employeeId } }),
+  getAll: (params) => axiosInstance.get('/notifications/', { params }),
+  getById: (id) => axiosInstance.get(`/notifications/${id}/`),
+  create: (data) => axiosInstance.post('/notifications/', data),
+  update: (id, data) => axiosInstance.put(`/notifications/${id}/`, data),
+  delete: (id) => axiosInstance.delete(`/notifications/${id}/`),
+  markAsRead: (id) => axiosInstance.post(`/notifications/${id}/mark_as_read/`),
+  markAllAsRead: (employeeId) => axiosInstance.post('/notifications/mark_all_as_read/', { employee_id: employeeId }),
+  getUnreadCount: (employeeId) => axiosInstance.get('/notifications/unread_count/', { params: { employee_id: employeeId } }),
 };
 
 // API cho hỗ trợ và khiếu nại
@@ -210,7 +211,7 @@ export const supportApi = {
       // Admin sẽ nhận tất cả tickets, user thường sẽ chỉ nhận tickets của họ
       // Backend tự động xử lý việc phân quyền này
       console.log("Gọi API lấy danh sách tickets với params:", params);
-      const response = await apiWithRetry(() => api.get('/tickets/', { params }));
+      const response = await apiWithRetry(() => axiosInstance.get('/tickets/', { params }));
       
       // Lưu vào cache cho xử lý fallback
       if (response && response.data && Array.isArray(response.data)) {
@@ -229,7 +230,7 @@ export const supportApi = {
   getTicketById: async (id) => {
     try {
       // Thử lấy thông tin chi tiết ticket
-      return await apiWithRetry(() => api.get(`/tickets/${id}/`));
+      return await apiWithRetry(() => axiosInstance.get(`/tickets/${id}/`));
     } catch (error) {
       console.log(`Lỗi khi tải ticket ${id} trực tiếp:`, error);
 
@@ -282,7 +283,7 @@ export const supportApi = {
 
         // Thử lấy từ danh sách tickets
         console.log(`Tìm trong danh sách tickets...`);
-        const listResponse = await api.get('/tickets/my_tickets/');
+        const listResponse = await axiosInstance.get('/tickets/my_tickets/');
 
         if (listResponse && listResponse.data && Array.isArray(listResponse.data)) {
           // Lưu vào cache cho lần sau
@@ -323,17 +324,17 @@ export const supportApi = {
     }
   },
 
-  createTicket: (data) => api.post('/tickets/', data),
-  updateTicket: (id, data) => api.put(`/tickets/${id}/`, data),
-  deleteTicket: (id) => api.delete(`/tickets/${id}/`),
-  changeTicketStatus: (id, status) => api.post(`/tickets/${id}/change_status/`, { status }),
-  assignTicket: (id, adminId) => api.post(`/tickets/${id}/assign/`, { admin_id: adminId }),
-  getTicketStats: () => api.get('/tickets/stats/'),
+  createTicket: (data) => axiosInstance.post('/tickets/', data),
+  updateTicket: (id, data) => axiosInstance.put(`/tickets/${id}/`, data),
+  deleteTicket: (id) => axiosInstance.delete(`/tickets/${id}/`),
+  changeTicketStatus: (id, status) => axiosInstance.post(`/tickets/${id}/change_status/`, { status }),
+  assignTicket: (id, adminId) => axiosInstance.post(`/tickets/${id}/assign/`, { admin_id: adminId }),
+  getTicketStats: () => axiosInstance.get('/tickets/stats/'),
 
   getMyTickets: async (params) => {
     try {
       // Sử dụng endpoint /tickets/ chung nhưng hệ thống backend sẽ lọc theo user hiện tại
-      const response = await apiWithRetry(() => api.get('/tickets/', { params }));
+      const response = await apiWithRetry(() => axiosInstance.get('/tickets/', { params }));
 
       // Lưu vào cache cho xử lý fallback
       if (response && response.data && Array.isArray(response.data)) {
@@ -368,7 +369,7 @@ export const supportApi = {
   // Messages - thêm cơ chế fallback
   getMessages: async (ticketId) => {
     try {
-      const response = await apiWithRetry(() => api.get('/messages/', { params: { ticket_id: ticketId } }));
+      const response = await apiWithRetry(() => axiosInstance.get('/messages/', { params: { ticket_id: ticketId } }));
 
       // Lưu cache tin nhắn cho ticket này
       if (response && response.data) {
@@ -419,7 +420,7 @@ export const supportApi = {
 
     try {
       // Thử gửi tin nhắn
-      const response = await apiWithRetry(() => api.post('/messages/', data));
+      const response = await apiWithRetry(() => axiosInstance.post('/messages/', data));
 
       // Nếu gửi thành công, xóa tin nhắn khỏi danh sách đang chờ
       const updatedPendingMessages = JSON.parse(localStorage.getItem('pendingMessages') || '[]');
@@ -485,7 +486,7 @@ export const supportApi = {
         }
 
         // Thử gửi tin nhắn
-        const response = await api.post('/messages/', {
+        const response = await axiosInstance.post('/messages/', {
           ticket: message.ticket,
           content: message.content,
           sender: message.sender
@@ -547,10 +548,19 @@ export const supportApi = {
 
 // API cho người dùng
 export const userApi = {
-  getAll: () => api.get('/users/'), // Thêm endpoint để lấy danh sách user
-  changePassword: (oldPassword, newPassword) => api.post('/change-password/', {
+  getAll: () => axiosInstance.get('/users/'), // Thêm endpoint để lấy danh sách user
+  changePassword: (oldPassword, newPassword, token) => axiosInstance.post('/change-password/', {
     old_password: oldPassword,
     new_password: newPassword
+  }, {
+    headers: {
+      Authorization: `Token ${token}`,
+    },
+  }),
+  updateUser: (userId, data, token) => axiosInstance.put(`/users/${userId}/`, data, {
+    headers: {
+      Authorization: `Token ${token}`,
+    },
   }),
 };
 

@@ -1,134 +1,129 @@
-## FaceTrack-AI - Hệ thống chấm công khuôn mặt
+# FaceTrack-AI - Hệ thống chấm công khuôn mặt bằng AI
 
-FaceTrack-AI là hệ thống chấm công hiện đại sử dụng trí tuệ nhân tạo để nhận diện khuôn mặt, hỗ trợ chống giả mạo với DeepFace.
+FaceTrack-AI là hệ thống chấm công hiện đại sử dụng trí tuệ nhân tạo để nhận diện khuôn mặt, chống giả mạo (anti-spoofing), quản lý nhân viên, ca làm việc, hỗ trợ và dashboard trực quan.
 
-### Tính năng chính
+---
+
+## Tính năng nổi bật
 
 - Nhận diện khuôn mặt chính xác với DeepFace
-- Chống giả mạo với công nghệ anti-spoofing
-- Quản lý nhân viên và chấm công
-- Dashboard trực quan hiển thị thống kê
-- API RESTful
-- Giao diện người dùng thân thiện
+- Chống giả mạo (anti-spoofing)
+- Quản lý nhân viên, phòng ban, ca làm việc
+- Chấm công, thống kê, báo cáo
+- Hỗ trợ, khiếu nại, chat nội bộ (admin - nhân viên)
+- Giao diện React hiện đại, thân thiện
+- API RESTful chuẩn, dễ tích hợp
 
-### Yêu cầu hệ thống
+---
 
-- Python 3.7+
-- Node.js 14+
-- Các thư viện Python: DeepFace, OpenCV, Django, Django REST framework
-- Các thư viện JavaScript: React, Material-UI, Axios
+## Yêu cầu hệ thống
 
-### Cài đặt
+- **Python** 3.7+
+- **Node.js** 14+
+- **Docker** & **Docker Compose** (Khuyến nghị để chạy nhanh)
+- **PostgreSQL** (chạy qua Docker)
+- Các thư viện Python: DeepFace, OpenCV, Django, djangorestframework, psycopg2-binary, ...
+- Các thư viện JS: React, Material-UI, Axios, ...
 
-1. Clone repository
+---
 
-```bash
-git clone https://github.com/your-username/FaceTrack-AI.git
-cd FaceTrack-AI
-```
+## Cài đặt & Khởi động nhanh với Docker
 
-2. Cài đặt dependencies cho backend
+1. **Clone source code**
+
+   ```bash
+   git clone https://github.com/your-username/FaceTrack-AI.git
+   cd FaceTrack-AI
+   ```
+
+2. **Chạy toàn bộ hệ thống bằng Docker Compose**
+
+   ```bash
+   docker-compose up -d
+   ```
+
+- **Chạy lần đầu**: Nên migrate database và tạo superuser Django để truy cập trang admin:
+  ```bash
+  docker-compose exec backend python manage.py migrate
+  docker-compose exec backend python manage.py createsuperuser
+  ```
+
+3. **Truy cập ứng dụng:**
+   - Frontend: [http://localhost:3000](http://localhost:3000)
+   - Backend API: [http://localhost:8000](http://localhost:8000)
+   - Admin Django: [http://localhost:8000/admin](http://localhost:8000/admin)
+
+---
+
+## Hướng dẫn chạy thủ công (không dùng Docker)
+
+### Backend (Django)
 
 ```bash
 cd backend
+python -m venv venv
+source venv/bin/activate  # hoặc .\venv\Scripts\activate trên Windows
 pip install -r requirements.txt
-```
-
-3. Cài đặt dependencies cho frontend
-
-```bash
-cd ../frontend
-npm install
-```
-
-### Chạy ứng dụng
-
-#### Sử dụng script tự động
-
-Chúng tôi cung cấp các script shell để dễ dàng chạy và quản lý ứng dụng:
-
-1. Chạy cả backend và frontend
-
-```bash
-chmod +x run_app.sh
-./run_app.sh
-```
-
-2. Dừng tất cả các dịch vụ
-
-```bash
-chmod +x stop_app.sh
-./stop_app.sh
-```
-
-3. Debug ứng dụng
-
-```bash
-chmod +x debug_app.sh
-./debug_app.sh
-```
-
-#### Chạy thủ công
-
-1. Chạy backend (Django)
-
-```bash
-cd backend
+python manage.py migrate
 python manage.py runserver
 ```
 
-2. Chạy frontend (React)
+### Frontend (React)
 
 ```bash
 cd frontend
+npm install
 npm start
 ```
 
-### Debug và Xử lý sự cố
+---
 
-Script `debug_app.sh` cung cấp nhiều công cụ để debug:
-
-- Kiểm tra trạng thái backend/frontend
-- Xem logs
-- Kiểm tra kết nối cơ sở dữ liệu
-- Theo dõi logs theo thời gian thực
-- Chạy các test cơ bản
-- Hiển thị thông tin phiên bản thư viện
-
-### Cấu trúc thư mục
+## Cấu trúc thư mục
 
 ```
 FaceTrack-AI/
 ├── backend/             # Django backend
 │   ├── api/             # API endpoints
-│   ├── attendance/      # App quản lý chấm công
-│   ├── employees/       # App quản lý nhân viên
-│   ├── face_checkin/    # App cấu hình Django chính
-│   └── manage.py        # Django CLI
+│   ├── attendance/      # Quản lý chấm công
+│   ├── employees/       # Quản lý nhân viên
+│   ├── support/         # Hỗ trợ, khiếu nại, chat
+│   ├── notifications/   # Thông báo
+│   ├── face_checkin/    # Cấu hình Django chính
+│   └── manage.py
 │
 ├── frontend/            # React frontend
-│   ├── public/          # Tài nguyên tĩnh
-│   ├── src/             # Mã nguồn React
-│   │   ├── components/  # React components
-│   │   ├── pages/       # Các trang
-│   │   └── services/    # Dịch vụ API
-│   └── package.json     # Cấu hình npm
+│   ├── public/
+│   ├── src/
+│   │   ├── components/
+│   │   ├── pages/
+│   │   └── services/
+│   └── package.json
 │
-├── run_app.sh           # Script chạy ứng dụng
-├── stop_app.sh          # Script dừng ứng dụng
-└── debug_app.sh         # Script debug ứng dụng
+├── docker-compose.yml   # Chạy toàn bộ hệ thống
+├── nginx/               # Cấu hình reverse proxy (nếu dùng)
+└── media/               # Lưu trữ ảnh khuôn mặt, file upload
 ```
 
-### Thông tin về Anti-Spoofing
+---
 
-FaceTrack-AI sử dụng công nghệ DeepFace để phát hiện khuôn mặt giả mạo:
+## Một số lưu ý khi sử dụng
+
+- **Ảnh khuôn mặt**: Được lưu trong thư mục `media/face_data/` và truy cập qua backend.
+- **Kết nối database**: Mặc định dùng PostgreSQL qua Docker, port 5432.
+- **Cấu hình domain**: Nếu deploy thật, cần sửa các biến môi trường trong `docker-compose.yml` cho đúng domain thực tế.
+- **Chạy lần đầu**: Nên tạo superuser Django để truy cập trang admin:
+  ```bash
+  docker-compose exec backend python manage.py createsuperuser
+  ```
+
+---
+
+## Demo tính năng anti-spoofing với DeepFace
 
 ```python
-# Sử dụng với anti-spoofing
+from deepface import DeepFace
 face_objs = DeepFace.extract_faces(img_path="image.jpg", anti_spoofing=True)
 assert all(face_obj["is_real"] is True for face_obj in face_objs)
 ```
 
-### Đóng góp
-
-Vui lòng đọc [CONTRIBUTING.md](CONTRIBUTING.md) để biết chi tiết về quy trình gửi pull request.
+---

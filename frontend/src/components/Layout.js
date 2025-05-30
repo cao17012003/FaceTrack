@@ -36,6 +36,7 @@ import {
   Stack,
   Container,
   Chip,
+  Alert,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -62,7 +63,7 @@ import {
 import { useTranslation } from '../translations';
 import { useTheme as useAppTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
-import { userApi } from '../services/api';
+import api from '../services/api';
 import axios from 'axios';
 import { AUTH_TOKEN_KEY } from '../config';
 
@@ -116,9 +117,7 @@ function Layout({ children }) {
       
       if (employeeId || isAdmin()) {
         // Gọi API để lấy số thông báo chưa đọc
-        const response = await import('../services/api').then(module => 
-          module.notificationApi.getUnreadCount(employeeId)
-        );
+        const response = await api.notificationApi.getUnreadCount(employeeId);
         
         if (response && response.data && response.data.count !== undefined) {
           setNotificationCount(response.data.count);
@@ -271,29 +270,35 @@ function Layout({ children }) {
     if (!validateForm()) {
       return;
     }
-    
     try {
-      // Chỉ gửi các trường đã được nhập
+      const token = localStorage.getItem(AUTH_TOKEN_KEY);
+      const userId = currentUser.user.id;
+      // Nếu có đổi mật khẩu
+      if (userData.oldPassword && userData.newPassword) {
+        const response = await api.user.changePassword(userData.oldPassword, userData.newPassword, token);
+        if (response.data.success) {
+          // Reset form và thông báo thành công
+          setUserData({
+            ...userData,
+            oldPassword: '',
+            newPassword: '',
+            confirmPassword: '',
+          });
+          setErrors({});
+          handleCloseEditDialog();
+          alert('Đổi mật khẩu thành công!');
+          return;
+        }
+      }
+      // Nếu chỉ cập nhật thông tin cá nhân
       const updateData = {
         first_name: userData.fullName.split(' ').slice(0, -1).join(' '),
         last_name: userData.fullName.split(' ').slice(-1).join(' '),
       };
-      
       if (userData.email) {
         updateData.email = userData.email;
       }
-      
-      if (userData.oldPassword && userData.newPassword) {
-        updateData.old_password = userData.oldPassword;
-        updateData.new_password = userData.newPassword;
-      }
-      
-      const token = localStorage.getItem(AUTH_TOKEN_KEY);
-      const userId = currentUser.user.id;
-      
-      const response = await userApi.updateUser(userId, updateData, token);
-      
-      // Cập nhật dữ liệu người dùng trong state
+      const response = await api.user.updateUser(userId, updateData, token);
       if (response && response.data) {
         const updatedUser = {
           ...currentUser.user,
@@ -301,42 +306,40 @@ function Layout({ children }) {
           last_name: updateData.last_name,
           email: updateData.email || currentUser.user.email,
         };
-        
-        // Cập nhật localStorage
         const updatedUserData = {
           ...currentUser,
           user: updatedUser,
         };
         localStorage.setItem('userData', JSON.stringify(updatedUserData));
-        
-        // Cập nhật state
         setUserData({
           ...userData,
           fullName: `${updatedUser.first_name} ${updatedUser.last_name}`.trim(),
           email: updatedUser.email,
-          oldPassword: '',
-          newPassword: '',
-          confirmPassword: '',
         });
-        
-        // Đóng dialog
+        setErrors({});
         handleCloseEditDialog();
       }
     } catch (error) {
       console.error('Error updating user:', error);
-      // Xử lý lỗi nếu có
       const errorMessage = error.response?.data?.detail || 'Có lỗi xảy ra khi cập nhật thông tin';
-      
-      if (error.response?.status === 400 && error.response?.data?.old_password) {
-        setErrors({
-          ...errors,
-          oldPassword: 'Mật khẩu hiện tại không chính xác',
-        });
-      } else {
-        setErrors({
-          ...errors,
-          general: errorMessage,
-        });
+      if (error.response?.status === 400) {
+        if (error.response?.data?.old_password) {
+          setErrors({
+            ...errors,
+            oldPassword: 'Mật khẩu hiện tại không chính xác',
+          });
+        } else if (error.response?.data?.password_errors) {
+          setErrors({
+            ...errors,
+            newPassword: error.response.data.password_errors.join('\n'),
+            samplePassword: error.response.data.sample_password
+          });
+        } else {
+          setErrors({
+            ...errors,
+            general: errorMessage,
+          });
+        }
       }
     }
   };
@@ -574,6 +577,9 @@ function Layout({ children }) {
               <Typography variant="subtitle1" gutterBottom>
                 Đổi mật khẩu
               </Typography>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                Mật khẩu mẫu: P@ssw0rd2025
+              </Alert>
             </Grid>
             <Grid item xs={12}>
               <FormControl fullWidth variant="outlined" error={!!errors.oldPassword}>
@@ -611,7 +617,7 @@ function Layout({ children }) {
                   label="Mật khẩu mới"
                 />
                 {errors.newPassword && (
-                  <FormHelperText>{errors.newPassword}</FormHelperText>
+                  <FormHelperText sx={{ whiteSpace: 'pre-line' }}>{errors.newPassword}</FormHelperText>
                 )}
               </FormControl>
             </Grid>

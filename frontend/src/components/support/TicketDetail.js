@@ -419,34 +419,38 @@ const TicketDetail = ({ ticket, onTicketUpdated, isAdmin }) => {
   };
 
   const renderMessageItem = (msg) => {
+    // Xác định người gửi có phải là currentUser không
+    const isCurrentUser = msg.sender === (currentUser?.user?.id || currentUser?.id);
+    // Nếu là admin và không có tên, hiển thị 'Admin'
     const isFromAdmin = msg.is_from_admin;
-    const isCurrentUser = msg.sender === currentUser?.id;
+    const senderName = isFromAdmin ? (msg.sender_name && msg.sender_name.trim() !== '' ? msg.sender_name : 'Admin') : (msg.sender_name || 'Unknown');
 
     return (
       <Box
         sx={{
           display: 'flex',
-          justifyContent: isFromAdmin ? 'flex-start' : 'flex-end',
+          justifyContent: isCurrentUser ? 'flex-end' : 'flex-start',
           mb: 2
         }}
         key={msg.id}
       >
-        {isFromAdmin && (
+        {/* Avatar bên trái nếu không phải currentUser */}
+        {!isCurrentUser && (
           <Avatar
             sx={{
-              bgcolor: 'primary.main',
+              bgcolor: isFromAdmin ? 'primary.main' : 'success.main',
               mr: 1
             }}
           >
-            <AdminIcon />
+            {isFromAdmin ? <AdminIcon /> : <PersonIcon />}
           </Avatar>
         )}
 
         <Box
           sx={{
             maxWidth: '70%',
-            backgroundColor: isFromAdmin ? 'grey.200' : 'primary.light',
-            color: isFromAdmin ? 'text.primary' : 'primary.contrastText',
+            backgroundColor: isCurrentUser ? 'primary.light' : 'grey.200',
+            color: isCurrentUser ? 'primary.contrastText' : 'text.primary',
             borderRadius: 2,
             px: 2,
             py: 1,
@@ -454,7 +458,7 @@ const TicketDetail = ({ ticket, onTicketUpdated, isAdmin }) => {
           }}
         >
           <Typography variant="subtitle2">
-            {msg.sender_name || 'Unknown'}
+            {senderName}
           </Typography>
 
           <Typography variant="body1">
@@ -474,14 +478,15 @@ const TicketDetail = ({ ticket, onTicketUpdated, isAdmin }) => {
           </Typography>
         </Box>
 
-        {!isFromAdmin && (
+        {/* Avatar bên phải nếu là currentUser */}
+        {isCurrentUser && (
           <Avatar
             sx={{
-              bgcolor: 'success.main',
+              bgcolor: isFromAdmin ? 'primary.main' : 'success.main',
               ml: 1
             }}
           >
-            <PersonIcon />
+            {isFromAdmin ? <AdminIcon /> : <PersonIcon />}
           </Avatar>
         )}
       </Box>

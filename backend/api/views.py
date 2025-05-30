@@ -9,6 +9,11 @@ from django.contrib.auth import authenticate
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.authtoken.models import Token
 from django.contrib.auth.models import User
+from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
+from django.conf import settings
+from .validators import validate_password_strength
 
 from employees.models import Employee, Department, UserProfile
 from attendance.models import Attendance
@@ -67,6 +72,7 @@ def register(request):
             'error': str(e)
         }, status=400)
 
+@csrf_exempt
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login(request):
@@ -188,14 +194,28 @@ def change_password(request):
     if not old_password or not new_password:
         return Response({
             'success': False,
-            'error': 'Vui lòng cung cấp mật khẩu cũ và mật khẩu mới'
+            'error': 'Vui lòng cung cấp mật khẩu cũ và mật khẩu mới',
+            'sample_password': settings.PASSWORD_VALIDATION['SAMPLE_PASSWORD']
         }, status=400)
     
     # Kiểm tra mật khẩu cũ
     if not user.check_password(old_password):
         return Response({
             'success': False,
-            'error': 'Mật khẩu hiện tại không chính xác'
+            'error': 'Mật khẩu hiện tại không chính xác',
+            'sample_password': settings.PASSWORD_VALIDATION['SAMPLE_PASSWORD']
+        }, status=400)
+    
+    # Kiểm tra điều kiện password mới
+    try:
+        validate_password(new_password, user=user)
+        validate_password_strength(new_password)
+    except ValidationError as e:
+        return Response({
+            'success': False,
+            'error': 'Mật khẩu mới không hợp lệ',
+            'password_errors': e.messages,
+            'sample_password': settings.PASSWORD_VALIDATION['SAMPLE_PASSWORD']
         }, status=400)
     
     # Đặt mật khẩu mới

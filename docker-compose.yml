@@ -19,7 +19,7 @@ services:
       - app-network
 
   backend:
-    build: 
+    build:
       context: ./backend
       dockerfile: Dockerfile
     volumes:
@@ -35,21 +35,21 @@ services:
     environment:
       - DEBUG=True # Đặt thành True để dễ dàng debug các vấn đề
       - SECRET_KEY=django-insecure-replace-with-your-own-key
-      - ALLOWED_HOSTS=localhost,127.0.0.1,ifobito.online,*.ifobito.online,demo.ifobito.online,backend,nginx
+      - ALLOWED_HOSTS=localhost,127.0.0.1,backend,nginx
       - POSTGRES_DB=facetrack
       - POSTGRES_USER=facetrack
       - POSTGRES_PASSWORD=facetrackpassword
       - POSTGRES_HOST=db
       - POSTGRES_PORT=5432
-      - CSRF_TRUSTED_ORIGINS=https://demo.ifobito.online,https://ifobito.online,http://localhost,http://127.0.0.1,http://nginx
-      - CORS_ALLOWED_ORIGINS=https://demo.ifobito.online,http://localhost:3000,http://frontend:3000,http://nginx
+      - CSRF_TRUSTED_ORIGINS=http://localhost,http://127.0.0.1,http://nginx
+      - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://frontend:3000,http://nginx
       - CORS_ALLOW_CREDENTIALS=True
     restart: unless-stopped
     networks:
       - app-network
 
   frontend:
-    build: 
+    build:
       context: ./frontend
       dockerfile: Dockerfile.dev
       args:
@@ -63,7 +63,6 @@ services:
       - backend
     environment:
       - REACT_APP_API_URL=/api
-      - PUBLIC_URL=https://demo.ifobito.online
       - DANGEROUSLY_DISABLE_HOST_CHECK=true
     restart: unless-stopped
     networks:

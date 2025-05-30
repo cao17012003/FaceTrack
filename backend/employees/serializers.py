@@ -71,6 +71,7 @@ class EmployeeDetailSerializer(serializers.ModelSerializer):
         ]
 
 class UserProfileSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='user.username', read_only=True)
     class Meta:
         model = UserProfile
         fields = ['id', 'username', 'is_admin', 'is_user', 'departments', 'created_at', 'updated_at']
